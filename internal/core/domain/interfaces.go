@@ -39,8 +39,8 @@ const (
 )
 
 type RankingRepository interface {
-	// GetRankedRepos returns a list of repos sorted by the criteria.
-	GetRankedRepos(ctx context.Context, limit int, sortBy RankSortOption) ([]ExtractedRepo, error)
+	// GetRankedRepos returns a list of repos sorted by the criteria and filtered by tag.
+	GetRankedRepos(ctx context.Context, limit int, sortBy RankSortOption, filterTag string) ([]ExtractedRepo, error)
 }
 
 // GitHubClient Port: Source (Secondary)

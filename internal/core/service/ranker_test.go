@@ -22,7 +22,7 @@ func (m *mockRankingRepo) GetReposForEnrichment(ctx context.Context, limit int, 
 func (m *mockRankingRepo) UpdateRepoEnrichment(ctx context.Context, update domain.RepoEnrichmentUpdate) error {
 	return nil
 }
-func (m *mockRankingRepo) GetRankedRepos(ctx context.Context, limit int, sortBy domain.RankSortOption) ([]domain.ExtractedRepo, error) {
+func (m *mockRankingRepo) GetRankedRepos(ctx context.Context, limit int, sortBy domain.RankSortOption, filterTag string) ([]domain.ExtractedRepo, error) {
 	return m.repos, nil
 }
 
@@ -35,7 +35,7 @@ func TestRanker_Rank(t *testing.T) {
 	ranker := service.NewRanker(mockRepo, nil, nil)
 	var buf bytes.Buffer
 
-	if err := ranker.Rank(context.Background(), 10, "stars", &buf); err != nil {
+	if err := ranker.Rank(context.Background(), 10, "stars", "", &buf); err != nil {
 		t.Fatalf("Rank failed: %v", err)
 	}
 
@@ -47,7 +47,7 @@ func TestRanker_Rank(t *testing.T) {
 func TestRanker_InvalidSort(t *testing.T) {
 	ranker := service.NewRanker(&mockRankingRepo{}, nil, nil)
 	var buf bytes.Buffer
-	if err := ranker.Rank(context.Background(), 10, "invalid", &buf); err == nil {
+	if err := ranker.Rank(context.Background(), 10, "invalid", "", &buf); err == nil {
 		t.Error("Expected error for invalid sort option")
 	}
 }

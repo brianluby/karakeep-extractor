@@ -23,7 +23,7 @@ func NewRanker(repo domain.RankingRepository, exporter domain.Exporter, sink dom
 	}
 }
 
-func (r *Ranker) Rank(ctx context.Context, limit int, sortBy string, output io.Writer) error {
+func (r *Ranker) Rank(ctx context.Context, limit int, sortBy string, filterTag string, output io.Writer) error {
 	var sortOption domain.RankSortOption
 	switch sortBy {
 	case "stars":
@@ -36,7 +36,7 @@ func (r *Ranker) Rank(ctx context.Context, limit int, sortBy string, output io.W
 		return fmt.Errorf("invalid sort option: %s (valid: stars, forks, updated)", sortBy)
 	}
 
-	repos, err := r.repo.GetRankedRepos(ctx, limit, sortOption)
+	repos, err := r.repo.GetRankedRepos(ctx, limit, sortOption, filterTag)
 	if err != nil {
 		return fmt.Errorf("failed to get ranked repos: %w", err)
 	}

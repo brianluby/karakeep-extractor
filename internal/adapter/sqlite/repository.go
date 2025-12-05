@@ -211,11 +211,18 @@ func (r *SQLiteRepository) GetReposForEnrichment(ctx context.Context, limit int,
 	return repos, nil
 }
 
-// GetRankedRepos returns a list of repos sorted by the criteria.
-func (r *SQLiteRepository) GetRankedRepos(ctx context.Context, limit int, sortBy domain.RankSortOption) ([]domain.ExtractedRepo, error) {
+// GetRankedRepos returns a list of repos sorted by the criteria and optionally filtered by a tag.
+func (r *SQLiteRepository) GetRankedRepos(ctx context.Context, limit int, sortBy domain.RankSortOption, filterTag string) ([]domain.ExtractedRepo, error) {
 	baseQuery := `SELECT repo_id, url, source_id, title, found_at, stars, forks, last_pushed_at, description, language, enrichment_status 
 	              FROM extracted_repos 
 	              WHERE enrichment_status = 'SUCCESS'`
+
+	var args []interface{}
+	if filterTag != "" {
+		baseQuery += " AND (title LIKE ? OR description LIKE ?)"
+		likePattern := "%" + filterTag + "%"
+		args = append(args, likePattern, likePattern)
+	}
 
 	var orderClause string
 	switch sortBy {
@@ -230,8 +237,9 @@ func (r *SQLiteRepository) GetRankedRepos(ctx context.Context, limit int, sortBy
 	}
 
 	finalQuery := fmt.Sprintf("%s %s LIMIT ?", baseQuery, orderClause)
+	args = append(args, limit)
 
-	rows, err := r.db.QueryContext(ctx, finalQuery, limit)
+	rows, err := r.db.QueryContext(ctx, finalQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query ranked repos: %w", err)
 	}

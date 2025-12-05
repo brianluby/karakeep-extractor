@@ -258,7 +258,7 @@ func TestSQLiteRepository_GetRankedRepos(t *testing.T) {
 	repo.UpdateRepoEnrichment(ctx, update4)
 
 	// Test Sort by Stars (Desc)
-	repos, err := repo.GetRankedRepos(ctx, 10, domain.SortByStars)
+	repos, err := repo.GetRankedRepos(ctx, 10, domain.SortByStars, "")
 	if err != nil {
 		t.Fatalf("GetRankedRepos(Stars) failed: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestSQLiteRepository_GetRankedRepos(t *testing.T) {
 	}
 
 	// Test Sort by Forks (Desc)
-	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByForks)
+	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByForks, "")
 	if err != nil {
 		t.Fatalf("GetRankedRepos(Forks) failed: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestSQLiteRepository_GetRankedRepos(t *testing.T) {
 	}
 
 	// Test Sort by Updated (Desc)
-	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByUpdated)
+	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByUpdated, "")
 	if err != nil {
 		t.Fatalf("GetRankedRepos(Updated) failed: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestSQLiteRepository_GetRankedRepos(t *testing.T) {
 	}
 
 	// Test Limit
-	repos, err = repo.GetRankedRepos(ctx, 1, domain.SortByStars)
+	repos, err = repo.GetRankedRepos(ctx, 1, domain.SortByStars, "")
 	if err != nil {
 		t.Fatalf("GetRankedRepos(Limit) failed: %v", err)
 	}

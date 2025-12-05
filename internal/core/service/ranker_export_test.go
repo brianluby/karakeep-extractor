@@ -3,13 +3,13 @@ package service_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"testing"
 
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 	"github.com/brianluby/karakeep-extractor/internal/core/service"
 )
+
 
 type mockExporter struct {
 	called bool
@@ -44,7 +44,7 @@ func TestRanker_WithExportAndSink(t *testing.T) {
 	ranker := service.NewRanker(mockRepo, mockExp, mockSnk)
 	var buf bytes.Buffer
 
-	if err := ranker.Rank(context.Background(), 10, "stars", &buf); err != nil {
+	if err := ranker.Rank(context.Background(), 10, "stars", "", &buf); err != nil {
 		t.Fatalf("Rank failed: %v", err)
 	}
 
@@ -64,14 +64,4 @@ func TestRanker_WithExportAndSink(t *testing.T) {
 		// Note: The sink success message is printed before export
 		t.Errorf("Unexpected output: %q", buf.String())
 	}
-}
-
-func TestRanker_SinkFailure(t *testing.T) {
-	mockRepo := &mockRankingRepo{repos: []domain.ExtractedRepo{{RepoID: "a"}}}
-	mockSnk := &mockSink{}
-	
-	// Mock sink failure?
-	// We need a failing sink mock or update the struct.
-	// Let's define a failing one inline or assume success for now.
-	// Actually, let's skip failure test or create a failing mock type if needed strictly.
 }
