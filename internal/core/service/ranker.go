@@ -10,11 +10,17 @@ import (
 )
 
 type Ranker struct {
-	repo domain.RankingRepository
+	repo     domain.RankingRepository
+	exporter domain.Exporter
+	sink     domain.Sink
 }
 
-func NewRanker(repo domain.RankingRepository) *Ranker {
-	return &Ranker{repo: repo}
+func NewRanker(repo domain.RankingRepository, exporter domain.Exporter, sink domain.Sink) *Ranker {
+	return &Ranker{
+		repo:     repo,
+		exporter: exporter,
+		sink:     sink,
+	}
 }
 
 func (r *Ranker) Rank(ctx context.Context, limit int, sortBy string, output io.Writer) error {
@@ -40,10 +46,20 @@ func (r *Ranker) Rank(ctx context.Context, limit int, sortBy string, output io.W
 		return nil
 	}
 
-	// Use Pager if output is stdout (which it usually is from main)
-	// But here we are passed an io.Writer. If it's not stdout, UsePager fallback handles it.
-	
-	// If we want to use the pager logic:
+	// 1. Handle Sink if configured
+	if r.sink != nil {
+		if err := r.sink.Send(ctx, repos); err != nil {
+			return fmt.Errorf("failed to send to sink: %w", err)
+		}
+		fmt.Fprintln(output, "Successfully sent results to sink.")
+	}
+
+	// 2. Handle Output (Exporter or Table)
+	if r.exporter != nil {
+		return r.exporter.Export(repos, output)
+	}
+
+	// Default: Table Pager
 	return ui.UsePager(output, func(w io.Writer) error {
 		renderer := ui.NewTableRenderer(w)
 		return renderer.Render(repos)

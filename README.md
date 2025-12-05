@@ -45,6 +45,14 @@ go build -o karakeep-extractor cmd/extractor/main.go
     sqlite3 karakeep.db "SELECT * FROM extracted_repos;"
     ```
 
+## 🔌 Integrations & Exports
+
+Future versions will expand the CLI's capability to pipe data into personal knowledge management systems and other APIs.
+
+- **JSON/CSV Export**: Standardize output for processing by other tools (`--format=json`).
+- **Trillium Notes**: Direct API integration to create notes for top-ranked repositories.
+- **Webhook Stubs**: Generic HTTP POST capability to send ranking payloads to user-defined endpoints (e.g., Zapier, n8n).
+
 ## 🗺️ Roadmap
 
 - [ ] **v1 (CLI):** Core logic for extraction, enrichment, and outputting ranked lists to the terminal or JSON/CSV.

@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // BookmarkSource Port: Source (Secondary)
 type BookmarkSource interface {
@@ -46,4 +49,18 @@ type GitHubClient interface {
 	// Returns stats, remaining rate limit, and error.
 	// Returns specific error for 404.
 	GetRepoStats(ctx context.Context, owner, repo string) (*RepoStats, int, error)
+}
+
+// Exporter Port: Output (Primary/Secondary)
+// Responsible for formatting the output to a specific stream.
+type Exporter interface {
+	// Export writes the repositories to the provided writer in the specific format.
+	Export(repos []ExtractedRepo, w io.Writer) error
+}
+
+// Sink Port: Output (Secondary)
+// Responsible for sending the data to an external system.
+type Sink interface {
+	// Send transmits the repository list to the configured endpoint.
+	Send(ctx context.Context, repos []ExtractedRepo) error
 }

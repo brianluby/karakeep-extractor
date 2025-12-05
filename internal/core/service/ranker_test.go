@@ -32,7 +32,7 @@ func TestRanker_Rank(t *testing.T) {
 			{RepoID: "test/repo1"},
 		},
 	}
-	ranker := service.NewRanker(mockRepo)
+	ranker := service.NewRanker(mockRepo, nil, nil)
 	var buf bytes.Buffer
 
 	if err := ranker.Rank(context.Background(), 10, "stars", &buf); err != nil {
@@ -45,7 +45,7 @@ func TestRanker_Rank(t *testing.T) {
 }
 
 func TestRanker_InvalidSort(t *testing.T) {
-	ranker := service.NewRanker(&mockRankingRepo{})
+	ranker := service.NewRanker(&mockRankingRepo{}, nil, nil)
 	var buf bytes.Buffer
 	if err := ranker.Rank(context.Background(), 10, "invalid", &buf); err == nil {
 		t.Error("Expected error for invalid sort option")

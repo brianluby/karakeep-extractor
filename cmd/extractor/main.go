@@ -8,12 +8,25 @@ import (
 	"log"
 	"os"
 
-	"github.com/brianluby/karakeep-extractor/internal/adapter/github"
+	gh "github.com/brianluby/karakeep-extractor/internal/adapter/github"
+	"github.com/brianluby/karakeep-extractor/internal/adapter/http"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/karakeep"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/sqlite"
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 	"github.com/brianluby/karakeep-extractor/internal/core/service"
+	"github.com/brianluby/karakeep-extractor/internal/ui"
 )
+
+type arrayFlags []string
+
+func (i *arrayFlags) String() string {
+	return "my string representation"
+}
+
+func (i *arrayFlags) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
 
 func main() {
 	// Subcommand handling
@@ -31,6 +44,10 @@ func main() {
 	rankCmd := flag.NewFlagSet("rank", flag.ExitOnError)
 	rankLimit := rankCmd.Int("limit", 20, "Number of repositories to display")
 	rankSort := rankCmd.String("sort", "stars", "Metric to sort by (stars, forks, updated)")
+	rankFormat := rankCmd.String("format", "table", "Output format (table, json, csv)")
+	rankSinkURL := rankCmd.String("sink-url", "", "URL to POST ranked results to")
+	var rankSinkHeaders arrayFlags
+	rankCmd.Var(&rankSinkHeaders, "sink-header", "Header to send with sink request (Key: Value)")
 
 	// Global flags logic is complex with subcommands if mixed. 
 	// We'll assume extract is default if no subcommand, or explicit 'extract' command.
@@ -47,7 +64,7 @@ func main() {
 		runEnrich(*enrichLimit, *enrichForce, *enrichToken)
 	case "rank":
 		rankCmd.Parse(os.Args[2:])
-		runRank(*rankLimit, *rankSort)
+		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders)
 	default:
 		// Fallback to extract for backward compatibility or print usage?
 		// Plan implied "karakeep enrich" as a command.
@@ -139,7 +156,7 @@ func runEnrich(limit int, force bool, tokenOverride string) {
 		log.Fatalf("Schema init failed: %v", err)
 	}
 
-	ghClient := github.NewClient(ghToken)
+	ghClient := gh.NewClient(ghToken)
 	enricher := service.NewEnricher(repo, ghClient)
 
 	fmt.Printf("Starting enrichment (Limit: %d, Force: %t)...\n", limit, force)
@@ -153,7 +170,7 @@ func runEnrich(limit int, force bool, tokenOverride string) {
 	}
 }
 
-func runRank(limit int, sort string) {
+func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders []string) {
 	dbPath := os.Getenv("KARAKEEP_DB")
 	if dbPath == "" {
 		dbPath = "./karakeep.db"
@@ -170,7 +187,19 @@ func runRank(limit int, sort string) {
 		log.Fatalf("Schema init failed: %v", err)
 	}
 
-	ranker := service.NewRanker(repo)
+	var exporter domain.Exporter
+	exporter, err = ui.GetExporter(format)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	var sink domain.Sink
+	if sinkURL != "" {
+		sink = http.NewHTTPSink(sinkURL, sinkHeaders)
+	}
+
+	ranker := service.NewRanker(repo, exporter, sink)
 	if err := ranker.Rank(context.Background(), limit, sort, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
