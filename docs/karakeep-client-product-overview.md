@@ -159,6 +159,24 @@ karakeep-extractor/
 
 ---
 
+## Future Integrations
+
+Beyond Trillium, here are other integrations planned or considered:
+
+### 1. **Obsidian (Markdown Files)**
+*   **Concept**: Export individual `.md` files for each top repository into a specified Obsidian vault directory.
+*   **Value**: Deep integration with personal knowledge graphs, leveraging Obsidian's linking and tagging capabilities.
+
+### 2. **Notion (API)**
+*   **Concept**: Add ranked repositories as structured items (rows) to a specific Notion Database.
+*   **Value**: Centralized project tracking and collaboration for Notion users.
+
+### 3. **Slack/Discord Webhook (Notifications)**
+*   **Concept**: Send a formatted summary (e.g., "Weekly Top 5") to a designated Slack or Discord channel.
+*   **Value**: Passive discovery and sharing of relevant projects within teams or communities.
+
+---
+
 **Document Version:** 2.0
 **Last Updated:** December 4, 2025
 **Status:** Draft - Ready for Review

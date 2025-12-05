@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2025-12-04
 - SQLite (Read-only access via existing `RankingRepository`). (004-export-formats)
 - Go 1.25.5 + `gopkg.in/yaml.v3` (for YAML parsing - standard in Go ecosystem for config), `bufio` (Stdlib) for interactive prompts. (005-configuration-wizard)
 - YAML file (`~/.config/karakeep/config.yaml`). (005-configuration-wizard)
+- Go 1.25.5 + `net/http` (Stdlib) for API calls. (006-trillium-integration)
+- Configuration update (YAML) to store Trillium credentials. (006-trillium-integration)
 
 - Go 1.25.5 + `net/http` (Stdlib), `github.com/mattn/go-sqlite3` (SQLite Driver) (001-karakeep-extract)
 
@@ -30,9 +32,9 @@ tests/
 Go 1.25.5: Follow standard conventions
 
 ## Recent Changes
+- 006-trillium-integration: Added Go 1.25.5 + `net/http` (Stdlib) for API calls.
 - 005-configuration-wizard: Added Go 1.25.5 + `gopkg.in/yaml.v3` (for YAML parsing - standard in Go ecosystem for config), `bufio` (Stdlib) for interactive prompts.
 - 004-export-formats: Added Go 1.25.5 + `net/http` (Stdlib) for Sink POST; `encoding/json` (Stdlib) for JSON export; `encoding/csv` (Stdlib) for CSV export.
-- 003-github-ranking: Added Go 1.25.5 + `net/http` (Stdlib), `encoding/json` (Stdlib), `github.com/mattn/go-sqlite3` (Existing)
 
 
 <!-- MANUAL ADDITIONS START -->

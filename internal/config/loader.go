@@ -54,6 +54,12 @@ func (l *ConfigLoader) LoadConfig(flagConfig *Config) (*Config, error) {
 			if fileConfig.GitHubToken != "" {
 				finalConfig.GitHubToken = fileConfig.GitHubToken
 			}
+			if fileConfig.TrilliumURL != "" {
+				finalConfig.TrilliumURL = fileConfig.TrilliumURL
+			}
+			if fileConfig.TrilliumToken != "" {
+				finalConfig.TrilliumToken = fileConfig.TrilliumToken
+			}
 			if fileConfig.DBPath != "" {
 				finalConfig.DBPath = fileConfig.DBPath
 			}
@@ -70,6 +76,12 @@ func (l *ConfigLoader) LoadConfig(flagConfig *Config) (*Config, error) {
 	if val := os.Getenv("GITHUB_TOKEN"); val != "" {
 		finalConfig.GitHubToken = val
 	}
+	if val := os.Getenv("TRILLIUM_URL"); val != "" {
+		finalConfig.TrilliumURL = val
+	}
+	if val := os.Getenv("TRILLIUM_TOKEN"); val != "" {
+		finalConfig.TrilliumToken = val
+	}
 	if val := os.Getenv("KARAKEEP_DB"); val != "" {
 		finalConfig.DBPath = val
 	}
@@ -84,6 +96,12 @@ func (l *ConfigLoader) LoadConfig(flagConfig *Config) (*Config, error) {
 		}
 		if flagConfig.GitHubToken != "" {
 			finalConfig.GitHubToken = flagConfig.GitHubToken
+		}
+		if flagConfig.TrilliumURL != "" {
+			finalConfig.TrilliumURL = flagConfig.TrilliumURL
+		}
+		if flagConfig.TrilliumToken != "" {
+			finalConfig.TrilliumToken = flagConfig.TrilliumToken
 		}
 		if flagConfig.DBPath != "" && flagConfig.DBPath != "./karakeep.db" { // Basic check to see if flag was actually set differently from default
 			// Note: This is imperfect if the flag default matches our internal default.

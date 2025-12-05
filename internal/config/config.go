@@ -10,6 +10,8 @@ type Config struct {
 	KarakeepToken string `yaml:"karakeep_token"`
 	DBPath        string `yaml:"db_path"`
 	GitHubToken   string `yaml:"github_token"`
+	TrilliumURL   string `yaml:"trillium_url,omitempty"`
+	TrilliumToken string `yaml:"trillium_token,omitempty"`
 }
 
 func Load() *Config {

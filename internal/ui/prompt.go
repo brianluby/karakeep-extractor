@@ -57,3 +57,14 @@ func (p *Prompt) AskSecret(label string) (string, error) {
 	return string(bytePassword), nil
 }
 
+// AskConfirm prompts for a Yes/No confirmation.
+func (p *Prompt) AskConfirm(label string) (bool, error) {
+	fmt.Fprintf(p.writer, "%s [y/N]: ", label)
+	input, err := p.reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	input = strings.TrimSpace(strings.ToLower(input))
+	return input == "y" || input == "yes", nil
+}
+

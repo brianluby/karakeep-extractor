@@ -13,6 +13,7 @@ import (
 	"github.com/brianluby/karakeep-extractor/internal/adapter/http"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/karakeep"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/sqlite"
+	"github.com/brianluby/karakeep-extractor/internal/adapter/trillium"
 	"github.com/brianluby/karakeep-extractor/internal/config"
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 	"github.com/brianluby/karakeep-extractor/internal/core/service"
@@ -50,6 +51,7 @@ func main() {
 	rankSinkURL := rankCmd.String("sink-url", "", "URL to POST ranked results to")
 	var rankSinkHeaders arrayFlags
 	rankCmd.Var(&rankSinkHeaders, "sink-header", "Header to send with sink request (Key: Value)")
+	rankSinkTrillium := rankCmd.Bool("sink-trillium", false, "Send ranked results to Trillium Notes")
 
 	// Global flags logic is complex with subcommands if mixed. 
 	// We'll assume extract is default if no subcommand, or explicit 'extract' command.
@@ -66,8 +68,8 @@ func main() {
 		runEnrich(*enrichLimit, *enrichForce, *enrichToken)
 	case "rank":
 		rankCmd.Parse(os.Args[2:])
-		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders)
-	default:
+		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders, *rankSinkTrillium)
+	case "setup":
 		// Fallback to extract for backward compatibility or print usage?
 		// Plan implied "karakeep enrich" as a command.
 		printUsage()
@@ -172,13 +174,15 @@ func runEnrich(limit int, force bool, tokenOverride string) {
 	}
 }
 
-func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders []string) {
-	dbPath := os.Getenv("KARAKEEP_DB")
-	if dbPath == "" {
-		dbPath = "./karakeep.db"
+func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders []string, sinkTrillium bool) {
+	// Load Config
+	loader := config.NewConfigLoader()
+	cfg, err := loader.LoadConfig(nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config file: %v\n", err)
 	}
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite3", cfg.DBPath)
 	if err != nil {
 		log.Fatalf("Failed to open DB: %v", err)
 	}
@@ -197,7 +201,14 @@ func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders 
 	}
 
 	var sink domain.Sink
-	if sinkURL != "" {
+	if sinkTrillium {
+		if cfg.TrilliumURL == "" || cfg.TrilliumToken == "" {
+			fmt.Fprintf(os.Stderr, "Error: Trillium URL and Token required. Run 'karakeep setup'.\n")
+			os.Exit(1)
+		}
+		client := trillium.NewClient(cfg.TrilliumURL, cfg.TrilliumToken)
+		sink = trillium.NewSink(client)
+	} else if sinkURL != "" {
 		sink = http.NewHTTPSink(sinkURL, sinkHeaders)
 	}
 
@@ -250,6 +261,38 @@ func runSetup() {
 		log.Fatalf("Error reading input: %v", err)
 	}
 
+	// Integrations
+	configureTrillium, err := prompt.AskConfirm("Configure Trillium Integration?")
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+
+	var trilliumURL, trilliumToken string
+	if configureTrillium {
+		trilliumURL, err = prompt.Ask("Enter Trillium Instance URL", currentCfg.TrilliumURL)
+		if err != nil {
+			log.Fatalf("Error reading input: %v", err)
+		}
+		
+		trilliumToken, err = prompt.AskSecret("Enter Trillium ETAPI Token")
+		if err != nil {
+			log.Fatalf("Error reading input: %v", err)
+		}
+		if trilliumToken == "" {
+			trilliumToken = currentCfg.TrilliumToken
+		}
+	} else {
+		// Keep existing if not re-configuring? Or clear?
+		// Typically if user says "No" to configuring, we might skip changing it.
+		// But if they want to disable it?
+		// For MVP setup, let's assume we keep existing values if they skip the section, 
+		// or we could just use the current values as defaults and they can clear them?
+		// The prompt logic above uses currentCfg as defaults.
+		// If they skip the section, we just use current values?
+		trilliumURL = currentCfg.TrilliumURL
+		trilliumToken = currentCfg.TrilliumToken
+	}
+
 	// 3. Confirm Overwrite if file exists
 	path, _ := config.GetConfigPath()
 	if _, err := os.Stat(path); err == nil {
@@ -266,6 +309,8 @@ func runSetup() {
 		KarakeepToken: token,
 		GitHubToken:   ghToken,
 		DBPath:        dbPath,
+		TrilliumURL:   trilliumURL,
+		TrilliumToken: trilliumToken,
 	}
 
 	if err := loader.SaveConfig(newCfg); err != nil {
