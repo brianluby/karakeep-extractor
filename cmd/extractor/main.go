@@ -52,6 +52,7 @@ func main() {
 	var rankSinkHeaders arrayFlags
 	rankCmd.Var(&rankSinkHeaders, "sink-header", "Header to send with sink request (Key: Value)")
 	rankSinkTrillium := rankCmd.Bool("sink-trillium", false, "Send ranked results to Trillium Notes")
+	rankTag := rankCmd.String("tag", "", "Filter repositories by tag (title/description)")
 
 	// Global flags logic is complex with subcommands if mixed. 
 	// We'll assume extract is default if no subcommand, or explicit 'extract' command.
@@ -68,7 +69,7 @@ func main() {
 		runEnrich(*enrichLimit, *enrichForce, *enrichToken)
 	case "rank":
 		rankCmd.Parse(os.Args[2:])
-		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders, *rankSinkTrillium)
+		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders, *rankSinkTrillium, *rankTag)
 	case "setup":
 		// Fallback to extract for backward compatibility or print usage?
 		// Plan implied "karakeep enrich" as a command.
@@ -78,11 +79,17 @@ func main() {
 }
 
 func printUsage() {
+	fmt.Println("Karakeep Extractor - Intelligence for your bookmarks")
+	fmt.Println("")
 	fmt.Println("Usage: karakeep <command> [flags]")
+	fmt.Println("")
 	fmt.Println("Commands:")
-	fmt.Println("  extract    Run the extraction process")
-	fmt.Println("  enrich     Enrich extracted repositories with GitHub metadata")
-	fmt.Println("  rank       Display ranked list of repositories")
+	fmt.Println("  setup      Run the interactive configuration wizard to set API tokens and URLs.")
+	fmt.Println("  extract    Fetch bookmarks from Karakeep and save GitHub links to the local database.")
+	fmt.Println("  enrich     Fetch metadata (stars, forks, etc.) from GitHub for extracted repositories.")
+	fmt.Println("  rank       Display, filter, and export a ranked list of repositories.")
+	fmt.Println("")
+	fmt.Println("Run 'karakeep <command> --help' for command-specific flags.")
 }
 
 func runExtract() {
@@ -174,7 +181,7 @@ func runEnrich(limit int, force bool, tokenOverride string) {
 	}
 }
 
-func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders []string, sinkTrillium bool) {
+func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders []string, sinkTrillium bool, tag string) {
 	// Load Config
 	loader := config.NewConfigLoader()
 	cfg, err := loader.LoadConfig(nil)
@@ -213,7 +220,7 @@ func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders 
 	}
 
 	ranker := service.NewRanker(repo, exporter, sink)
-	if err := ranker.Rank(context.Background(), limit, sort, os.Stdout); err != nil {
+	if err := ranker.Rank(context.Background(), limit, sort, tag, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

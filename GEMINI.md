@@ -15,6 +15,7 @@ Auto-generated from all feature plans. Last updated: 2025-12-04
 - Configuration update (YAML) to store Trillium credentials. (006-trillium-integration)
 - Go 1.25.5 + `github.com/mattn/go-sqlite3` (Existing). (007-filter-by-tag)
 - SQLite (Read-only query modification). (007-filter-by-tag)
+- Markdown (for docs), Go 1.25.5 (for CLI help text updates). + None. (008-documentation-sprint)
 
 - Go 1.25.5 + `net/http` (Stdlib), `github.com/mattn/go-sqlite3` (SQLite Driver) (001-karakeep-extract)
 
@@ -34,9 +35,9 @@ tests/
 Go 1.25.5: Follow standard conventions
 
 ## Recent Changes
+- 008-documentation-sprint: Added Markdown (for docs), Go 1.25.5 (for CLI help text updates). + None.
 - 007-filter-by-tag: Added Go 1.25.5 + `github.com/mattn/go-sqlite3` (Existing).
 - 006-trillium-integration: Added Go 1.25.5 + `net/http` (Stdlib) for API calls.
-- 005-configuration-wizard: Added Go 1.25.5 + `gopkg.in/yaml.v3` (for YAML parsing - standard in Go ecosystem for config), `bufio` (Stdlib) for interactive prompts.
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -1,69 +1,72 @@
 # Karakeep Extractor
 
-**Karakeep Extractor** is a tool designed to surface high-potential open-source projects by bridging data from Karakeep with metadata from GitHub.
+[![Go Report Card](https://goreportcard.com/badge/github.com/brianluby/karakeep-extractor)](https://goreportcard.com/report/github.com/brianluby/karakeep-extractor)
+[![License](https://img.shields.io/github/license/brianluby/karakeep-extractor)](LICENSE)
 
-## 🎯 Objective
+**Karakeep Extractor** is a powerful CLI tool designed to surface high-potential open-source projects by bridging your personal knowledge base (Karakeep) with real-time metadata from GitHub.
 
-The primary goal is to identify projects of interest by:
-1.  **Extracting** GitHub URLs and AI summaries from KaraKeep posts.
-2.  **Enriching** this data by connecting to the GitHub API to retrieve star counts and other metadata.
-3.  **Ranking** the results to prioritize the most popular or trending repositories.
+It helps you turn a static list of bookmarks into an actionable, ranked intelligence report.
 
-## ✨ Features
+## ✨ Key Features
 
-- **Data Extraction:** Scrapes/Queries KaraKeep API for post summaries and embedded links.
-- **GitHub Integration:** Fetches real-time repository statistics (Stars, Forks, Last Updated).
-- **Force Ranking:** Sorts projects based on popularity metrics to aid in discovery.
-- **CLI Interface:** Simple command-line tool for execution.
+- **📥 Extract**: Automatically fetch bookmarks from your Karakeep instance and identify GitHub repositories.
+- **⚡ Enrich**: Fetch real-time statistics (Stars, Forks, Last Updated) from the GitHub API.
+- **🏆 Rank**: Sort repositories by popularity or freshness to prioritize your reading list.
+- **🔍 Filter**: Slice your data by keywords (tags) to focus on specific topics (e.g., "python", "cli").
+- **📤 Export**: Output data to JSON, CSV, or pipe it directly to external APIs (like Trillium Notes).
 
-## 🚀 Quickstart
+## 📦 Installation
 
-### Prerequisites
-*   Go 1.25+
-*   Access to a Karakeep instance (URL + Token)
+### From Source (Go 1.25+)
 
-### Build
 ```bash
-go build -o karakeep-extractor cmd/extractor/main.go
+git clone https://github.com/brianluby/karakeep-extractor.git
+cd karakeep-extractor
+go build -o karakeep cmd/extractor/main.go
+# Move to your PATH
+sudo mv karakeep /usr/local/bin/
 ```
 
-### Run Extraction
+## 🚀 Quick Start
 
-1.  **Set Environment Variables** (Optional but recommended):
-    ```bash
-    export KARAKEEP_URL="https://my-karakeep.com"
-    export KARAKEEP_TOKEN="my-secret-token"
-    ```
+### 1. Setup
+Configure your API credentials once. This saves them to `~/.config/karakeep/config.yaml`.
 
-2.  **Run the command**:
-    ```bash
-    ./karakeep-extractor extract
-    ```
+```bash
+karakeep setup
+```
 
-3.  **Verify Output**:
-    ```bash
-    sqlite3 karakeep.db "SELECT * FROM extracted_repos;"
-    ```
+### 2. Extract
+Fetch your latest bookmarks.
 
-## 🔌 Integrations & Exports
+```bash
+karakeep extract
+```
 
-Future versions will expand the CLI's capability to pipe data into personal knowledge management systems and other APIs.
+### 3. Enrich
+Fetch metadata for the extracted repositories (respects rate limits).
 
-- **JSON/CSV Export**: Standardize output for processing by other tools (`--format=json`).
-- **Trillium Notes**: Direct API integration to create notes for top-ranked repositories.
-- **Webhook Stubs**: Generic HTTP POST capability to send ranking payloads to user-defined endpoints (e.g., Zapier, n8n).
+```bash
+karakeep enrich
+```
+
+### 4. Rank
+View your top 20 repositories by star count.
+
+```bash
+karakeep rank
+```
+
+## 📚 Documentation
+
+For detailed usage instructions, command references, and advanced recipes (exporting, webhooks), please see the **[Usage Guide](docs/usage.md)**.
 
 ## 🗺️ Roadmap
 
-- [ ] **v1 (CLI):** Core logic for extraction, enrichment, and outputting ranked lists to the terminal or JSON/CSV.
-- [ ] **v2 (Web UI):** A simple dashboard to visualize the ranked projects and filter by tags/categories.
-
-## 🛠️ Architecture
-
-1.  **Source:** KaraKeep API
-2.  **Processor:** Parses content, extracts `github.com` links.
-3.  **Enricher:** Async queries to GitHub API.
-4.  **Output:** Ranked list.
+- [x] **v1 (CLI):** Core logic for extraction, enrichment, and ranking.
+- [x] **Exporting:** JSON/CSV and Webhook support.
+- [x] **Integrations:** Trillium Notes support.
+- [ ] **v2 (Web UI):** A simple dashboard to visualize the ranked projects.
 
 ---
 *Created for the Karakeep Extractor project.*
