@@ -1,6 +1,6 @@
-# Karakeep Client Application - Product Overview
+# Karakeep Extraction - Product Overview
 
-**Version:** 1.1
+**Version:** 2.0
 **Date:** December 2025
 **Status:** Concept & Planning Phase
 
@@ -8,19 +8,14 @@
 
 ## Executive Summary
 
-This document outlines a new client application for Karakeep, a self-hosted bookmark management system with AI-powered tagging. The application will begin as a command-line interface (CLI) tool and evolve into a web-based user interface, providing users with flexible ways to interact with their Karakeep instance.
+This document outlines the **Karakeep Extraction** tool, a specialized command-line application designed to bridge the gap between personal knowledge collection in Karakeep and open-source project discovery on GitHub.
 
-### What is Karakeep?
+### Core Mission
 
-Karakeep (formerly Hoarder) is an open-source, self-hostable "bookmark everything" application that allows users to:
-- Save web links with automatic metadata extraction
-- Store text notes and snippets
-- Archive images and PDF documents
-- Automatically tag content using AI (OpenAI or local Ollama models)
-- Perform full-text searches across all saved content
-- Organize bookmarks into lists and with tags
-- Create highlights and annotations
-- Protect against link rot with full page archival
+To identify, enrich, and surface high-potential open-source projects by:
+1.  **Extracting** raw project links and AI-generated summaries from a user's Karakeep instance.
+2.  **Enriching** those links with real-time metadata (stars, forks, last update) from the GitHub API.
+3.  **Ranking** and presenting the results to help users prioritize which projects to explore.
 
 ---
 
@@ -28,72 +23,34 @@ Karakeep (formerly Hoarder) is an open-source, self-hostable "bookmark everythin
 
 ### Problem Statement
 
-While Karakeep provides excellent web and mobile interfaces, there are scenarios where users would benefit from:
-1. **Quick CLI access** for power users and automation scripts
-2. **Custom workflows** not available in the main interface
-3. **Batch operations** on bookmarks
-4. **Integration with other command-line tools** (pipe data in/out)
-5. **Alternative UI experiences** tailored to specific use cases
+Users often save interesting GitHub repositories to Karakeep (formerly Hoarder) as they browse. However, these bookmarks sit in a static list without context on their popularity or activity. Users miss out on identifying "trending" or "high-value" projects buried in their own archives.
 
 ### Solution
 
-Build a progressive application that:
-- **Phase 1:** Starts as a powerful CLI tool for Karakeep power users
-- **Phase 2:** Evolves into a specialized web interface with unique features
-- **Future:** Could expand to include browser extensions, desktop apps, or integrations
+A CLI tool that acts as an intelligence layer over Karakeep. It doesn't just manage bookmarks; it **analyzes** them.
+
+**Key Value Props:**
+*   **Discovery:** Find the "hidden gems" in your own bookmark list.
+*   **Freshness:** Know which projects are active and which are abandoned.
+*   **Focus:** Prioritize reading based on community signal (stars/forks).
 
 ---
 
-## Karakeep API Overview
+## Data Sources & Integrations
 
-### Authentication
-- **Method:** JWT Bearer Token authentication
-- **Security:** HTTP Bearer scheme
-- Tokens are generated from the Karakeep web interface under user settings
+### 1. Karakeep (Source)
+*   **Role:** The primary data source for "raw" project leads.
+*   **Interaction:** The CLI queries the Karakeep API to fetch bookmarks, specifically looking for `github.com` URLs and their associated AI summaries/tags.
+*   **Auth:** Bearer Token (JWT).
 
-### Available API Endpoints
-
-Based on the Karakeep API documentation (v0.29.0), the following resources are available:
-
-#### 1. **Bookmarks API**
-- Get all bookmarks (with pagination and filtering)
-- Create new bookmarks (links, notes, assets)
-- Update bookmark details
-- Delete bookmarks
-- Manage bookmark metadata (title, description, tags)
-
-#### 2. **Lists API**
-- Get all bookmark lists
-- Create custom lists
-- Add/remove bookmarks from lists
-- Organize bookmarks hierarchically
-
-#### 3. **Tags API**
-- Retrieve all tags
-- Create custom tags
-- Attach/detach tags from bookmarks
-- View tag usage statistics
-
-#### 4. **Highlights API**
-- Get highlights from saved content
-- Create new highlights
-- Annotate bookmarked content
-
-#### 5. **Users API**
-- Get current user information
-- Manage user preferences
-
-#### 6. **Assets API**
-- Upload images and PDFs
-- Manage asset metadata
-
-#### 7. **Admin API** (if admin privileges)
-- Update user information
-- Manage system-wide settings
-
-#### 8. **Backups API**
-- Get backup information
-- Trigger backup operations
+### 2. GitHub (Enrichment)
+*   **Role:** The source of truth for project health and popularity.
+*   **Interaction:** The CLI queries the GitHub REST API to fetch:
+    *   Star Count (`stargazers_count`)
+    *   Fork Count (`forks_count`)
+    *   Last Updated Date (`pushed_at`)
+    *   Description & Language
+*   **Auth:** Personal Access Token (optional but recommended for rate limits).
 
 ---
 
@@ -101,507 +58,107 @@ Based on the Karakeep API documentation (v0.29.0), the following resources are a
 
 ### Core Features
 
-#### 1.1 Basic Operations
+#### 1.1 Extraction & Enrichment
 ```bash
-# Add a bookmark
-karakeep add <url> [--tags tag1,tag2] [--list "My List"]
-karakeep note "Quick thought" [--tags idea]
-karakeep upload image.png [--tags screenshot]
+# The core loop: Fetch from Karakeep -> Enrich via GitHub -> Output Table
+karakeep-extractor run [--limit 50] [--tag "dev-tools"]
 
-# Search bookmarks
-karakeep search "machine learning"
-karakeep search --tag python --list "Dev Resources"
-
-# List operations
-karakeep list                    # Show all lists
-karakeep list bookmarks "Reading List"
-karakeep list create "New List"
-
-# View bookmarks
-karakeep show <bookmark_id>
-karakeep recent [--limit 10]
-karakeep tags                    # List all tags
+# Example Output:
+# | Rank | Project          | Stars  | Forks | Last Update | Summary (from Karakeep) |
+# |------|------------------|--------|-------|-------------|-------------------------|
+# | 1    | charmbracelet/   | 35k    | 1.2k  | 2 hrs ago   | TUI library for Go      |
+# | 2    | karakeep/karakeep| 5k     | 200   | 1 day ago   | Bookmark manager        |
 ```
 
-#### 1.2 Batch Operations
+#### 1.2 Sync & Update
 ```bash
-# Bulk tagging
-karakeep tag-add "python,tutorial" --search "python"
-
-# Export bookmarks
-karakeep export --format json > bookmarks.json
-karakeep export --list "Work" --format csv
-
-# Import from file
-karakeep import urls.txt [--list "Imported"]
-
-# Bulk operations
-karakeep bulk-delete --tag "temp"
-karakeep bulk-move --from "List A" --to "List B"
+# Update metadata for existing extracted links without re-fetching from Karakeep
+karakeep-extractor refresh
 ```
 
-#### 1.3 Advanced Features
+#### 1.3 Configuration
 ```bash
-# Interactive mode
-karakeep interactive     # Enter REPL-style interface
-
-# Pipe support
-cat urls.txt | karakeep add --stdin
-karakeep search "api" | grep -i "python"
-
-# Automation & scripting
-karakeep sync-rss       # Sync RSS feeds
-karakeep cleanup --older-than 30d --tag "temp"
-
-# Statistics and analytics
-karakeep stats                    # Overall statistics
-karakeep stats --by-tag          # Tag usage
-karakeep stats --by-date         # Timeline view
+# Setup wizard for both services
+karakeep-extractor setup
+# Prompts for:
+# - Karakeep URL & Token
+# - GitHub Token (optional)
 ```
 
-#### 1.4 Configuration
-```bash
-# Setup
-karakeep config set-server https://my-karakeep.com
-karakeep config set-token <jwt-token>
-
-# Multiple profiles
-karakeep config profile add work --server https://work.karakeep.com
-karakeep config profile use work
-karakeep config profile list
-```
-
-### Technical Architecture (CLI)
+### Technical Architecture
 
 #### Technology Stack
 - **Language:** Golang (Go)
-  - **Why Go:** Single binary distribution, excellent performance, strong standard library, strict typing, excellent concurrency support.
-  
-- **HTTP Client:** `go-resty/resty` or standard `net/http`
-- **CLI Framework:** `spf13/cobra` (standard for Go CLIs like kubectl, hugo)
-- **Data Display:** 
-  - `charmbracelet/lipgloss` for styling
-  - `olekukonko/tablewriter` for tables
-  - `charmbracelet/bubbletea` for interactive TUI elements
-  
-- **Configuration:** 
-  - `spf13/viper` for config management
-  - Store in `~/.karakeep/config.yaml`
-  - Secure token storage using `99designs/keyring`
+  - **Why:** Strong concurrency for parallel API requests (fetching GitHub stats for 100s of links).
+- **HTTP Client:** `go-resty/resty`
+- **CLI Framework:** `spf13/cobra`
+- **Output:** `charmbracelet/lipgloss` (styling) & `olekukonko/tablewriter`.
+
+#### Data Flow
+1.  **User** runs `extract` command.
+2.  **App** calls Karakeep API -> Returns List of Bookmarks.
+3.  **App** filters for `github.com/*` URLs.
+4.  **App** spawns concurrent workers to call GitHub API for each repo.
+5.  **App** aggregates results, calculates a "Score" (default: star count), and sorts.
+6.  **App** renders the ranked table to stdout.
 
 #### Project Structure
 ```
-karakeep-cli/
+karakeep-extractor/
 ├── cmd/
-│   └── karakeep/      # Main entry point
+│   └── extractor/     # Main entry point
 │       └── main.go
 ├── internal/
-│   ├── api/           # API client implementation
-│   ├── auth/          # Authentication logic
-│   ├── commands/      # CLI command handlers
-│   ├── config/        # Configuration management
-│   ├── models/        # Data structures
-│   └── ui/            # Output formatting & TUI
-├── pkg/               # Reusable library code (optional)
+│   ├── adapter/       # API Clients
+│   │   ├── karakeep/
+│   │   └── github/
+│   ├── core/          # Business Logic
+│   │   ├── domain/    # Structs (Bookmark, RepoStats)
+│   │   └── service/   # Orchestrator (Extract -> Enrich -> Rank)
+│   ├── config/        # Viper setup
+│   └── ui/            # TUI rendering
 ├── go.mod
-├── go.sum
 └── README.md
 ```
-
-### CLI User Experience
-
-#### Installation
-```bash
-# Install via Go
-go install github.com/yourusername/karakeep-cli/cmd/karakeep@latest
-
-# Or download pre-compiled binary
-# (Future: brew install karakeep)
-
-# First run setup wizard
-karakeep setup
-# Prompts for server URL and token
-```
-
-#### Output Formatting
-- **Default:** Clean, readable terminal output
-- **JSON mode:** `--json` flag for machine-readable output
-- **Quiet mode:** `--quiet` for scripts (only errors)
-- **Verbose mode:** `--verbose` for debugging
-
-#### Error Handling
-- Clear, actionable error messages
-- Suggest fixes when possible
-- Non-zero exit codes for scripting
-
----
-
-## Phase 2: Web UI Application
-
-### Differentiation Strategy
-
-Rather than duplicating Karakeep's existing web interface, this application will focus on:
-
-1. **Alternative Views & Visualizations**
-   - Timeline view of bookmark history
-   - Graph/network view of tag relationships
-   - Gallery view for image bookmarks
-   - Statistics dashboard with charts
-
-2. **Specialized Workflows**
-   - Reading queue management
-   - Research project organization
-   - Content curation tools
-   - Bookmark deduplication
-
-3. **Enhanced Search & Discovery**
-   - Fuzzy search with typo tolerance
-   - Advanced filters and saved searches
-   - Related bookmarks suggestions
-   - Bookmark recommendations based on patterns
-
-4. **Collaboration Features** (if multi-user)
-   - Shared lists with comments
-   - Bookmark collections
-   - Public bookmark pages
-
-### Web UI Feature Set
-
-#### 2.1 Dashboard
-- Quick stats overview (total bookmarks, recent additions, top tags)
-- Activity timeline
-- Quick add bookmark form
-- Saved search shortcuts
-
-#### 2.2 Advanced Search Interface
-- Visual query builder
-- Search by multiple criteria simultaneously
-- Saved searches with notifications
-- Search result clustering by similarity
-
-#### 2.3 Visualizations
-- Tag cloud (interactive)
-- Timeline view with filtering
-- Network graph of tag relationships
-- Heatmap of bookmark activity
-
-#### 2.4 Bulk Management
-- Multi-select with actions
-- Merge duplicate bookmarks
-- Clean up broken links
-- Reorganize tags in bulk
-
-#### 2.5 Analytics Dashboard
-- Bookmark growth over time
-- Most used tags
-- Top domains saved
-- Content type distribution
-- Reading time estimates vs actual
-
-### Technical Architecture (Web UI)
-
-#### Frontend Stack
-- **Framework:** React or Vue.js
-  - **React:** Larger ecosystem, more job-relevant
-  - **Vue.js:** Gentler learning curve, excellent docs
-  
-- **State Management:** 
-  - React: Zustand or Context API
-  - Vue: Pinia
-  
-- **UI Library:** 
-  - Tailwind CSS for styling
-  - shadcn/ui or Headless UI for components
-  
-- **Data Visualization:** 
-  - Chart.js or Recharts for graphs
-  - D3.js for advanced visualizations
-  
-- **HTTP Client:** axios or fetch API
-
-#### Backend Options
-
-**Option A: Serverless (Direct API)**
-- Frontend directly calls Karakeep API
-- No backend server needed
-- Simpler deployment
-- **Pros:** Simple, no server maintenance
-- **Cons:** Limited to Karakeep API capabilities
-
-**Option B: Proxy Server (Go Backend)**
-- Lightweight Go server (Fiber or Gin)
-- Proxies requests to Karakeep API
-- Adds custom endpoints for specialized features
-- **Pros:** Can implement custom logic, caching, rate limiting, single binary with embedded frontend
-- **Cons:** Additional deployment complexity
-
-**Recommendation:** Start with Option A, migrate to B if needed
-
-#### Project Structure (Web)
-```
-karakeep-web/
-├── src/
-│   ├── components/        # React/Vue components
-│   │   ├── Dashboard/
-│   │   ├── Search/
-│   │   ├── Visualizations/
-│   │   └── Common/
-│   ├── pages/            # Route pages
-│   ├── services/         # API integration
-│   │   └── api.js
-│   ├── stores/           # State management
-│   ├── utils/            # Helpers
-│   ├── styles/           # CSS/styling
-│   └── App.jsx
-├── public/
-├── package.json
-└── README.md
-```
-
-#### Deployment Options
-- **Static Hosting:** Netlify, Vercel, GitHub Pages
-- **Self-Hosted:** Docker container alongside Karakeep
-- **VPS:** Any server with Node.js or static file serving
 
 ---
 
 ## Development Roadmap
 
-### Phase 1: CLI (Months 1-2)
+### Sprint 1: Foundation (Weeks 1-2)
+- [ ] Project scaffolding (Go mod, Cobra, Viper).
+- [ ] **Karakeep Client:** Implement `GetBookmarks` with pagination.
+- [ ] **GitHub Client:** Implement `GetRepoDetails` with rate limit handling.
 
-#### Sprint 1: Foundation (Weeks 1-2)
-- [ ] Set up Go project structure & modules
-- [ ] Implement API client wrapper
-- [ ] Basic authentication flow
-- [ ] Configuration management (Viper)
-- [ ] Basic commands: `add`, `search`, `list` (Cobra)
+### Sprint 2: Core Logic (Weeks 3-4)
+- [ ] **Extraction Service:** Regex parsing of GitHub URLs from bookmark links/text.
+- [ ] **Enrichment Service:** Worker pool pattern to fetch GitHub stats concurrently.
+- [ ] **Ranking Engine:** Basic sorting by Star Count.
+- [ ] **CLI Output:** Formatted table display.
 
-#### Sprint 2: Core Features (Weeks 3-4)
-- [ ] Complete CRUD operations for bookmarks
-- [ ] List management commands
-- [ ] Tag operations
-- [ ] Output formatting (Table, JSON)
-- [ ] Error handling
-
-#### Sprint 3: Advanced Features (Weeks 5-6)
-- [ ] Batch operations
-- [ ] Import/export functionality
-- [ ] Search filters and advanced queries
-- [ ] Interactive mode (Bubble Tea)
-- [ ] Statistics commands
-
-#### Sprint 4: Polish & Release (Weeks 7-8)
-- [ ] Comprehensive testing
-- [ ] Documentation
-- [ ] Cross-platform compilation
-- [ ] Release binary (GitHub Releases/Homebrew)
-
-### Phase 2: Web UI (Months 3-5)
-
-#### Sprint 1: Setup & Core (Weeks 9-11)
-- [ ] Project scaffolding
-- [ ] API integration layer
-- [ ] Authentication flow
-- [ ] Basic dashboard
-- [ ] Bookmark list view
-
-#### Sprint 2: Search & Filters (Weeks 12-14)
-- [ ] Advanced search interface
-- [ ] Filter builder
-- [ ] Search results display
-- [ ] Saved searches
-
-#### Sprint 3: Visualizations (Weeks 15-17)
-- [ ] Statistics dashboard
-- [ ] Timeline view
-- [ ] Tag visualization
-- [ ] Analytics charts
-
-#### Sprint 4: Advanced Features (Weeks 18-20)
-- [ ] Bulk operations UI
-- [ ] Bookmark deduplication
-- [ ] Export functionality
-- [ ] User preferences
-
-#### Sprint 5: Polish & Deploy (Weeks 21-22)
-- [ ] Responsive design
-- [ ] Performance optimization
-- [ ] User testing
-- [ ] Documentation
-- [ ] Deployment setup
-
----
-
-## Technical Considerations
-
-### Security
-- **Token Storage:** Use secure keyring/keychain on CLI
-- **HTTPS Only:** Enforce secure connections
-- **Token Rotation:** Support updating tokens without reconfiguration
-- **CORS:** Handle CORS for web UI if needed
-
-### Performance
-- **Concurrency:** Leverage Goroutines for concurrent API requests (e.g., batch operations)
-- **Caching:** Implement smart caching for frequently accessed data
-- **Pagination:** Support paginated results for large datasets
-- **Lazy Loading:** Load data as needed in web UI
-
-### Error Handling
-- Network errors (connection issues, timeouts)
-- Authentication errors (invalid/expired token)
-- API errors (rate limiting, malformed requests)
-- User input validation errors
-
-### Testing Strategy
-- **Unit Tests:** Go standard `testing` package, `testify` for assertions
-- **Integration Tests:** Full command workflows
-- **E2E Tests:** (Web) Full user journeys
-- **Mock API:** Test without live Karakeep instance
-
----
-
-## Monetization & Sustainability (Optional)
-
-While this is an open-source tool, consider:
-
-1. **Open Source (Free)**
-   - Build reputation in self-hosted community
-   - Accept donations via GitHub Sponsors
-   - Offer premium support
-
-2. **Freemium Model**
-   - Basic features free
-   - Advanced visualizations paid
-   - Commercial license for businesses
-
-3. **SaaS Option**
-   - Host web UI for users who don't want to self-host
-   - Subscription model
-   - Connect to their Karakeep instance
-
----
-
-## Risks & Mitigation
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Karakeep API changes | High | Version the client, maintain compatibility matrix |
-| Limited API features | Medium | Implement workarounds, contribute to Karakeep core |
-| User adoption | Medium | Focus on unique value proposition, marketing |
-| Maintenance burden | Medium | Automate testing, CI/CD, clear documentation |
-| Security vulnerabilities | High | Regular security audits, dependency updates |
+### Sprint 3: Polish (Week 5)
+- [ ] Caching (don't re-fetch GitHub stats if < 24h old).
+- [ ] JSON/CSV export flags (`--format=json`).
+- [ ] Comprehensive Error Handling (invalid tokens, API down).
 
 ---
 
 ## Success Metrics
-
-### CLI Success Metrics
-- Downloads/installations per month
-- Active users (telemetry opt-in)
-- GitHub stars and community engagement
-- Issue resolution time
-
-### Web UI Success Metrics
-- Monthly active users
-- Average session duration
-- Feature usage statistics
-- User feedback/satisfaction score
+- **Accuracy:** Correctly identifies valid GitHub links from mixed bookmark data.
+- **Performance:** Can enrich 100 bookmarks in < 5 seconds (using concurrency).
+- **Utility:** User can successfully identify their "top rated" saved project.
 
 ---
 
-## Competitive Landscape
-
-### Similar Tools
-- **Karakeep Official CLI:** Basic functionality exists
-- **Browser Extensions:** Quick saving, limited management
-- **Raindrop.io:** Commercial, not self-hosted
-- **Shiori:** Self-hosted, less features
-
-### Our Differentiation
-- **Deeper integration** with Karakeep's full API
-- **Power user focus** with advanced CLI features
-- **Unique visualizations** in web UI
-- **Open source** and extensible
-- **Automation-friendly** design
+## Risks & Mitigation
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| GitHub Rate Limits | High | Implement authenticated requests (5000 req/hr) & caching. |
+| Karakeep API Changes | Medium | Strict interface decoupling. |
+| Data Noise | Medium | Robust regex filters to ignore non-project GitHub links (e.g., issues, profiles). |
 
 ---
 
-## Community & Contribution
-
-### Open Source Strategy
-- **License:** MIT or Apache 2.0
-- **Repository:** GitHub with clear contribution guidelines
-- **Documentation:** Comprehensive README, wiki, examples
-- **Issues:** Bug reports, feature requests welcome
-- **Discussions:** Community forum or Discord
-
-### Integration with Karakeep Community
-- Coordinate with Karakeep maintainer (Mohamed Bassem)
-- Cross-promote in respective communities
-- Consider upstreaming beneficial features
-- Maintain compatibility with Karakeep releases
-
----
-
-## Next Steps
-
-### Immediate Actions (Week 1)
-1. **Initialize Go module** and project repository
-2. **Set up development environment** (Go 1.21+)
-3. **Create Karakeep test instance** for development
-4. **Generate API token** and test basic endpoints
-5. **Prototype basic `add` and `search` commands** using Cobra
-
-### Short Term (Weeks 2-4)
-1. Implement core API wrapper
-2. Build essential CLI commands
-3. Set up testing framework
-4. Create initial documentation
-
-### Medium Term (Months 2-3)
-1. Complete CLI feature set
-2. Release CLI v1.0
-3. Gather user feedback
-4. Plan web UI architecture
-
----
-
-## Resources & References
-
-### Karakeep Resources
-- **Documentation:** https://docs.karakeep.app
-- **GitHub:** https://github.com/karakeep-app/karakeep
-- **Demo Instance:** https://try.karakeep.app
-- **API Docs:** https://docs.karakeep.app/api/karakeep-api
-
-### Technical References
-- **Cobra (Go CLI):** https://cobra.dev
-- **Viper (Config):** https://github.com/spf13/viper
-- **Resty (HTTP):** https://github.com/go-resty/resty
-- **Lipgloss (Styles):** https://github.com/charmbracelet/lipgloss
-- **Bubble Tea (TUI):** https://github.com/charmbracelet/bubbletea
-- **React Documentation:** https://react.dev
-- **Vue.js Guide:** https://vuejs.org/guide
-
-### Community
-- **Karakeep Discord:** https://discord.gg/NrgeYywsFh
-- **r/selfhosted:** Reddit community for self-hosted apps
-
----
-
-## Conclusion
-
-This project offers an exciting opportunity to build a valuable tool for the Karakeep ecosystem. By starting with a focused CLI and evolving to a specialized web interface, we can deliver value incrementally while building a sustainable and maintainable application.
-
-The key to success will be:
-1. **Solving real problems** that Karakeep users face
-2. **Maintaining quality** with good testing and documentation
-3. **Engaging the community** for feedback and contributions
-4. **Staying flexible** to adapt as Karakeep evolves
-
----
-
-**Document Version:** 1.1
+**Document Version:** 2.0
 **Last Updated:** December 4, 2025
-**Author:** Product Planning Team
 **Status:** Draft - Ready for Review
