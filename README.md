@@ -1,6 +1,6 @@
-# KaraKeep Extraction
+# Karakeep Extractor
 
-**KaraKeep Extraction** is a tool designed to surface high-potential open-source projects by bridging data from KaraKeep with metadata from GitHub.
+**Karakeep Extractor** is a tool designed to surface high-potential open-source projects by bridging data from Karakeep with metadata from GitHub.
 
 ## 🎯 Objective
 
@@ -29,4 +29,4 @@ The primary goal is to identify projects of interest by:
 4.  **Output:** Ranked list.
 
 ---
-*Created for the KaraKeep Extraction project.*
+*Created for the Karakeep Extractor project.*
