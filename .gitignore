@@ -31,10 +31,6 @@
 
 # Gemini CLI specific directories
 .gemini/
-specs/
-
-# .specify directory
-.specify/
 
 # Configuration (user-specific, not to be committed)
 config.yaml
