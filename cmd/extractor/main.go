@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	gh "github.com/brianluby/karakeep-extractor/internal/adapter/github"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/http"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/karakeep"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/sqlite"
+	"github.com/brianluby/karakeep-extractor/internal/config"
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 	"github.com/brianluby/karakeep-extractor/internal/core/service"
 	"github.com/brianluby/karakeep-extractor/internal/ui"
@@ -204,4 +206,72 @@ func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders 
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func runSetup() {
+	prompt := ui.NewPrompt(os.Stdin, os.Stdout)
+
+	fmt.Println("Karakeep Extractor Setup")
+	fmt.Println("------------------------")
+
+	// 1. Load existing or default
+	loader := config.NewConfigLoader()
+	
+	// We load config (ignoring flags since setup is clean interaction usually, but we could respect them as defaults)
+	// For now, just load file/env to populate defaults
+	currentCfg, _ := loader.LoadConfig(nil)
+
+	// 2. Prompt User
+	url, err := prompt.Ask("Enter Karakeep URL", currentCfg.KarakeepURL)
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+
+	token, err := prompt.AskSecret("Enter Karakeep API Token")
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+	// If user just presses enter on secret, it returns empty string.
+	// We assume they want to keep existing token if they provide empty.
+	if token == "" {
+		token = currentCfg.KarakeepToken
+	}
+
+	ghToken, err := prompt.AskSecret("Enter GitHub Personal Access Token (optional)")
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+	if ghToken == "" {
+		ghToken = currentCfg.GitHubToken
+	}
+
+	dbPath, err := prompt.Ask("Enter SQLite Database Path", currentCfg.DBPath)
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+
+	// 3. Confirm Overwrite if file exists
+	path, _ := config.GetConfigPath()
+	if _, err := os.Stat(path); err == nil {
+		confirm, _ := prompt.Ask(fmt.Sprintf("Overwrite existing config at %s? (y/N)", path), "N")
+		if strings.ToLower(confirm) != "y" {
+			fmt.Println("Aborted.")
+			os.Exit(0)
+		}
+	}
+
+	// 4. Save
+	newCfg := &config.Config{
+		KarakeepURL:   url,
+		KarakeepToken: token,
+		GitHubToken:   ghToken,
+		DBPath:        dbPath,
+	}
+
+	if err := loader.SaveConfig(newCfg); err != nil {
+		log.Fatalf("Failed to save config: %v", err)
+	}
+
+	fmt.Printf("\nConfiguration saved to %s\n", path)
+	fmt.Println("Permissions set to 0600.")
 }

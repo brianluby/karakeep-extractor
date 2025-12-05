@@ -6,10 +6,10 @@ import (
 )
 
 type Config struct {
-	KarakeepURL   string
-	KarakeepToken string
-	DBPath        string
-	GitHubToken   string
+	KarakeepURL   string `yaml:"karakeep_url"`
+	KarakeepToken string `yaml:"karakeep_token"`
+	DBPath        string `yaml:"db_path"`
+	GitHubToken   string `yaml:"github_token"`
 }
 
 func Load() *Config {
