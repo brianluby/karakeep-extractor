@@ -1,0 +1,42 @@
+# Binaries for programs and plugins
+*.exe
+*.o
+*.so
+*.dll
+*.wasm
+*.bin
+
+# Test binary, generated with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when using go test -coverprofile
+*.out
+
+# Dependency directories (go modules will create a vendor folder)
+/vendor/
+
+# Go build cache
+.cache/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*~
+.#*
+*.log
+
+# macOS
+.DS_Store
+
+# Gemini CLI specific directories
+.gemini/
+specs/
+
+# .specify directory
+.specify/
+
+# Configuration (user-specific, not to be committed)
+config.yaml
+*.env
+.env
