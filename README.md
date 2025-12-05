@@ -16,7 +16,36 @@ The primary goal is to identify projects of interest by:
 - **Force Ranking:** Sorts projects based on popularity metrics to aid in discovery.
 - **CLI Interface:** Simple command-line tool for execution.
 
-##  roadmap
+## 🚀 Quickstart
+
+### Prerequisites
+*   Go 1.25+
+*   Access to a Karakeep instance (URL + Token)
+
+### Build
+```bash
+go build -o karakeep-extractor cmd/extractor/main.go
+```
+
+### Run Extraction
+
+1.  **Set Environment Variables** (Optional but recommended):
+    ```bash
+    export KARAKEEP_URL="https://my-karakeep.com"
+    export KARAKEEP_TOKEN="my-secret-token"
+    ```
+
+2.  **Run the command**:
+    ```bash
+    ./karakeep-extractor extract
+    ```
+
+3.  **Verify Output**:
+    ```bash
+    sqlite3 karakeep.db "SELECT * FROM extracted_repos;"
+    ```
+
+## 🗺️ Roadmap
 
 - [ ] **v1 (CLI):** Core logic for extraction, enrichment, and outputting ranked lists to the terminal or JSON/CSV.
 - [ ] **v2 (Web UI):** A simple dashboard to visualize the ranked projects and filter by tags/categories.

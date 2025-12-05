@@ -5,6 +5,15 @@
 **Status**: Draft
 **Input**: User description: "Implement Karakeep API client and data extraction logic."
 
+## Clarifications
+
+### Session 2025-12-04
+- Q: Output format for extracted data? → A: Write to a local SQLite database.
+- Q: How to handle duplicate/variant URLs? → A: Canonical Repository match (normalize to owner/repo).
+- Q: Rate Limit handling? → A: Retry with exponential backoff.
+- Q: How to handle malformed URLs? → A: Log error and skip bookmark.
+- Q: How to provide Karakeep configuration (URL, Token)? → A: Environment variables and/or CLI flags.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Connect to Karakeep (Priority: P1)
@@ -42,21 +51,24 @@ As a user, I want the tool to fetch all my bookmarks and identify the ones that 
 
 ### Edge Cases
 
-- **Rate Limiting**: What happens if the Karakeep API rate limits the requests? (Should retry or fail gracefully).
-- **Malformed URLs**: How does the system handle bookmarks with invalid URL strings?
-- **Duplicate Links**: User saved the same repo twice. System should likely deduplicate.
+- **Rate Limiting**: Resolved. System implements retry logic with exponential backoff (e.g., 3 attempts).
+- **Malformed URLs**: Resolved. System will log errors for invalid URLs and skip the affected bookmarks.
+- **Duplicate Links**: Resolved. System normalizes to `owner/repo` and stores unique entries only.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST accept configuration for Karakeep Base URL and API Bearer Token.
+- FR-001: System MUST accept configuration for Karakeep Base URL and API Bearer Token via environment variables and/or CLI flags.
 - **FR-002**: System MUST provide a CLI command (e.g., `extract` or `fetch`) to initiate the process.
 - **FR-003**: System MUST authenticate with the Karakeep API using the provided token.
 - **FR-004**: System MUST fetch bookmarks from Karakeep, handling pagination automatically.
-- **FR-005**: System MUST filter the fetched bookmarks to retain only those with `github.com` in the URL.
-- **FR-006**: System MUST output the extracted list of GitHub repository URLs (and associated Karakeep metadata like Title/Summary) to the console (stdout) or a structured file (JSON) for verification.
-- **FR-007**: System MUST handle common API errors (401 Unauthorized, 404 Not Found, 500 Server Error) with user-friendly error messages.
+- FR-005: System MUST filter fetched bookmarks to retain only those with `github.com` in the URL, normalizing them to the canonical `owner/repo` format (ignoring protocol, www, .git, and fragments).
+- FR-006: System MUST output the extracted list of GitHub repository URLs (and associated Karakeep metadata like Title/Summary) to a local SQLite database for persistence.
+- FR-007: System MUST handle common API errors (401 Unauthorized, 404 Not Found, 500 Server Error) with user-friendly error messages.
+- FR-008: System MUST ensure only unique repositories (identified by `owner/repo`) are stored in the database, preventing duplicates.
+- FR-009: System MUST implement exponential backoff retry logic for HTTP 429 (Too Many Requests) responses (max 3 retries).
+- FR-010: System MUST log errors for malformed bookmark URLs and skip them without halting extraction.
 
 ### Key Entities
 
