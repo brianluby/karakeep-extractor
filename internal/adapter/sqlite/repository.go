@@ -210,3 +210,88 @@ func (r *SQLiteRepository) GetReposForEnrichment(ctx context.Context, limit int,
 
 	return repos, nil
 }
+
+// GetRankedRepos returns a list of repos sorted by the criteria.
+func (r *SQLiteRepository) GetRankedRepos(ctx context.Context, limit int, sortBy domain.RankSortOption) ([]domain.ExtractedRepo, error) {
+	baseQuery := `SELECT repo_id, url, source_id, title, found_at, stars, forks, last_pushed_at, description, language, enrichment_status 
+	              FROM extracted_repos 
+	              WHERE enrichment_status = 'SUCCESS'`
+
+	var orderClause string
+	switch sortBy {
+	case domain.SortByStars:
+		orderClause = "ORDER BY stars DESC"
+	case domain.SortByForks:
+		orderClause = "ORDER BY forks DESC"
+	case domain.SortByUpdated:
+		orderClause = "ORDER BY last_pushed_at DESC"
+	default:
+		orderClause = "ORDER BY stars DESC"
+	}
+
+	finalQuery := fmt.Sprintf("%s %s LIMIT ?", baseQuery, orderClause)
+
+	rows, err := r.db.QueryContext(ctx, finalQuery, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query ranked repos: %w", err)
+	}
+	defer rows.Close()
+
+	var repos []domain.ExtractedRepo
+	for rows.Next() {
+		var r domain.ExtractedRepo
+		var foundAt string
+		var lastPushedAt sql.NullString
+		var stars, forks sql.NullInt64
+		var description, language, enrichmentStatus sql.NullString
+
+		err := rows.Scan(
+			&r.RepoID, &r.URL, &r.SourceID, &r.Title, &foundAt,
+			&stars, &forks, &lastPushedAt, &description, &language, &enrichmentStatus,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan repo row: %w", err)
+		}
+
+		// Helper to parse time or fallback
+		parseTime := func(ts string) time.Time {
+			t, err := time.Parse(time.RFC3339, ts)
+			if err != nil {
+				t, _ = time.Parse("2006-01-02 15:04:05", ts)
+			}
+			return t
+		}
+
+		r.FoundAt = parseTime(foundAt)
+
+		if stars.Valid {
+			s := int(stars.Int64)
+			r.Stars = &s
+		}
+		if forks.Valid {
+			f := int(forks.Int64)
+			r.Forks = &f
+		}
+		if lastPushedAt.Valid {
+			t := parseTime(lastPushedAt.String)
+			r.LastPushedAt = &t
+		}
+		if description.Valid {
+			r.Description = &description.String
+		}
+		if language.Valid {
+			r.Language = &language.String
+		}
+		if enrichmentStatus.Valid {
+			r.EnrichmentStatus = domain.EnrichmentStatus(enrichmentStatus.String)
+		}
+
+		repos = append(repos, r)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return repos, nil
+}

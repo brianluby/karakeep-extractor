@@ -209,3 +209,90 @@ func TestSQLiteRepository_Enrichment(t *testing.T) {
 		t.Errorf("Expected status SUCCESS, got %s", enrichedRepo.EnrichmentStatus)
 	}
 }
+
+func TestSQLiteRepository_GetRankedRepos(t *testing.T) {
+	db, dbPath := newTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	repo := NewSQLiteRepository(db)
+	ctx := context.Background()
+
+	if err := repo.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Seed data with different stats
+	// repo1: 100 stars, 10 forks, old push
+	// repo2: 200 stars, 5 forks, new push
+	// repo3: unenriched
+	// repo4: enriched but failed (should not appear)
+
+	update1 := domain.RepoEnrichmentUpdate{
+		RepoID: "owner/repo1",
+		Stats: &domain.RepoStats{
+			Stars: 100, Forks: 10, LastPushed: time.Now().Add(-24 * time.Hour),
+		},
+		EnrichmentStatus: domain.StatusSuccess,
+	}
+	repo.Save(ctx, domain.ExtractedRepo{RepoID: update1.RepoID, URL: "url1", FoundAt: time.Now()})
+	repo.UpdateRepoEnrichment(ctx, update1)
+
+	update2 := domain.RepoEnrichmentUpdate{
+		RepoID: "owner/repo2",
+		Stats: &domain.RepoStats{
+			Stars: 200, Forks: 5, LastPushed: time.Now(),
+		},
+		EnrichmentStatus: domain.StatusSuccess,
+	}
+	repo.Save(ctx, domain.ExtractedRepo{RepoID: update2.RepoID, URL: "url2", FoundAt: time.Now()})
+	repo.UpdateRepoEnrichment(ctx, update2)
+
+	repo.Save(ctx, domain.ExtractedRepo{RepoID: "owner/repo3", URL: "url3", FoundAt: time.Now()}) // Pending
+
+	update4 := domain.RepoEnrichmentUpdate{
+		RepoID:           "owner/repo4",
+		EnrichmentStatus: domain.StatusNotFound,
+	}
+	repo.Save(ctx, domain.ExtractedRepo{RepoID: update4.RepoID, URL: "url4", FoundAt: time.Now()})
+	repo.UpdateRepoEnrichment(ctx, update4)
+
+	// Test Sort by Stars (Desc)
+	repos, err := repo.GetRankedRepos(ctx, 10, domain.SortByStars)
+	if err != nil {
+		t.Fatalf("GetRankedRepos(Stars) failed: %v", err)
+	}
+	if len(repos) != 2 {
+		t.Errorf("Expected 2 ranked repos, got %d", len(repos))
+	}
+	if repos[0].RepoID != "owner/repo2" {
+		t.Errorf("Expected top star repo to be repo2, got %s", repos[0].RepoID)
+	}
+
+	// Test Sort by Forks (Desc)
+	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByForks)
+	if err != nil {
+		t.Fatalf("GetRankedRepos(Forks) failed: %v", err)
+	}
+	if repos[0].RepoID != "owner/repo1" {
+		t.Errorf("Expected top fork repo to be repo1, got %s", repos[0].RepoID)
+	}
+
+	// Test Sort by Updated (Desc)
+	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByUpdated)
+	if err != nil {
+		t.Fatalf("GetRankedRepos(Updated) failed: %v", err)
+	}
+	if repos[0].RepoID != "owner/repo2" { // Repo2 is newer
+		t.Errorf("Expected newest repo to be repo2, got %s", repos[0].RepoID)
+	}
+
+	// Test Limit
+	repos, err = repo.GetRankedRepos(ctx, 1, domain.SortByStars)
+	if err != nil {
+		t.Fatalf("GetRankedRepos(Limit) failed: %v", err)
+	}
+	if len(repos) != 1 {
+		t.Errorf("Expected 1 repo, got %d", len(repos))
+	}
+}

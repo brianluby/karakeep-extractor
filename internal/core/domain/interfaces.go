@@ -27,6 +27,19 @@ type RepoRepository interface {
 	UpdateRepoEnrichment(ctx context.Context, update RepoEnrichmentUpdate) error
 }
 
+type RankSortOption string
+
+const (
+	SortByStars   RankSortOption = "stars"
+	SortByForks   RankSortOption = "forks"
+	SortByUpdated RankSortOption = "updated"
+)
+
+type RankingRepository interface {
+	// GetRankedRepos returns a list of repos sorted by the criteria.
+	GetRankedRepos(ctx context.Context, limit int, sortBy RankSortOption) ([]ExtractedRepo, error)
+}
+
 // GitHubClient Port: Source (Secondary)
 type GitHubClient interface {
 	// GetRepoStats fetches metadata for a single repo.

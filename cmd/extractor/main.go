@@ -28,6 +28,10 @@ func main() {
 	enrichForce := enrichCmd.Bool("force", false, "Force re-enrichment of processed repositories")
 	enrichToken := enrichCmd.String("token", "", "GitHub Personal Access Token (overrides env var)")
 
+	rankCmd := flag.NewFlagSet("rank", flag.ExitOnError)
+	rankLimit := rankCmd.Int("limit", 20, "Number of repositories to display")
+	rankSort := rankCmd.String("sort", "stars", "Metric to sort by (stars, forks, updated)")
+
 	// Global flags logic is complex with subcommands if mixed. 
 	// We'll assume extract is default if no subcommand, or explicit 'extract' command.
 	// For now, let's support "extract" and "enrich" explicitly.
@@ -41,6 +45,9 @@ func main() {
 		// Parse flags for enrich
 		enrichCmd.Parse(os.Args[2:])
 		runEnrich(*enrichLimit, *enrichForce, *enrichToken)
+	case "rank":
+		rankCmd.Parse(os.Args[2:])
+		runRank(*rankLimit, *rankSort)
 	default:
 		// Fallback to extract for backward compatibility or print usage?
 		// Plan implied "karakeep enrich" as a command.
@@ -54,6 +61,7 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  extract    Run the extraction process")
 	fmt.Println("  enrich     Enrich extracted repositories with GitHub metadata")
+	fmt.Println("  rank       Display ranked list of repositories")
 }
 
 func runExtract() {
@@ -140,6 +148,30 @@ func runEnrich(limit int, force bool, tokenOverride string) {
 	fmt.Printf("Enrichment complete.\nUpdated: %d\nErrors: %d\n", success, failed)
 	
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runRank(limit int, sort string) {
+	dbPath := os.Getenv("KARAKEEP_DB")
+	if dbPath == "" {
+		dbPath = "./karakeep.db"
+	}
+
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open DB: %v", err)
+	}
+	defer db.Close()
+	repo := sqlite.NewSQLiteRepository(db)
+	// Schema init not strictly required if just reading, but good practice
+	if err := repo.InitSchema(context.Background()); err != nil {
+		log.Fatalf("Schema init failed: %v", err)
+	}
+
+	ranker := service.NewRanker(repo)
+	if err := ranker.Rank(context.Background(), limit, sort, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

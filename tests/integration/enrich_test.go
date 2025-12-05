@@ -18,23 +18,8 @@ func TestEnrichIntegration(t *testing.T) {
 	// Let's try running the pre-built binary if build fails, or fix build command.
 	
 	// Ensure we are compiling from root context
-	cmd := exec.Command("go", "build", "-o", "karakeep_test_bin", "./cmd/extractor/main.go")
-	cmd.Dir = "../../" // Ensure CWD is project root if running from subdir? No, go test usually runs from package dir.
-	// If we are running `go test ./...` from root, CWD is package dir `tests/integration`.
-	// So `../../` is root.
-	// BUT `exec.Command` defaults to current process CWD.
-	// If `go test` changes CWD to package dir, we need to go up.
-	// Let's try setting Dir explicitly or using absolute path.
-	
-	// Actually, let's just verify where we are running from.
-	// Assuming `go test ./...` from root:
-	// Go test sets CWD to the directory containing the package being tested.
-	// So we are in `tests/integration`.
-	// We need to build `../../cmd/extractor/main.go`.
-	
-	// Ensure we are compiling from root context
 	// If running `go test` from root, CWD is `tests/integration`.
-	cmd = exec.Command("go", "build", "-o", "karakeep_test_bin", "../../cmd/extractor/main.go")
+	cmd := exec.Command("go", "build", "-o", "karakeep_test_bin", "../../cmd/extractor/main.go")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to build binary: %v", err)
 	}
