@@ -48,6 +48,13 @@ func (m *mockRepoRepository) Exists(ctx context.Context, repoID string) (bool, e
 	return exists, nil
 }
 
+func (m *mockRepoRepository) GetReposForEnrichment(ctx context.Context, limit int, force bool) ([]*domain.ExtractedRepo, error) {
+	return nil, nil
+}
+
+func (m *mockRepoRepository) UpdateRepoEnrichment(ctx context.Context, update domain.RepoEnrichmentUpdate) error {
+	return nil
+}
 
 func TestExtractService_Extract(t *testing.T) {
 	testCases := []struct {

@@ -16,6 +16,24 @@ type RawBookmark struct {
 	Content string `json:"content"` // Description or summary content (may contain links).
 }
 
+type EnrichmentStatus string
+
+const (
+	StatusPending  EnrichmentStatus = "PENDING"
+	StatusSuccess  EnrichmentStatus = "SUCCESS"
+	StatusNotFound EnrichmentStatus = "NOT_FOUND"
+	StatusAPIError EnrichmentStatus = "API_ERROR"
+)
+
+// RepoStats represents the metadata fetched from GitHub
+type RepoStats struct {
+	Stars       int
+	Forks       int
+	LastPushed  time.Time
+	Description string
+	Language    string
+}
+
 // ExtractedRepo The refined domain entity representing a GitHub repository found in bookmarks.
 type ExtractedRepo struct {
 	RepoID   string    // Canonical "owner/name" (Primary Key in DB).
@@ -23,4 +41,12 @@ type ExtractedRepo struct {
 	SourceID string    // ID of the original Karakeep bookmark.
 	Title    string    // Title from the bookmark.
 	FoundAt  time.Time // Timestamp of extraction.
+
+	// Enrichment Data
+	Stars            *int             // Nullable
+	Forks            *int             // Nullable
+	LastPushedAt     *time.Time       // Nullable
+	Description      *string          // Nullable
+	Language         *string          // Nullable
+	EnrichmentStatus EnrichmentStatus
 }

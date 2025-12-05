@@ -3,66 +3,144 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
+	"github.com/brianluby/karakeep-extractor/internal/adapter/github"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/karakeep"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/sqlite"
-	"github.com/brianluby/karakeep-extractor/internal/config"
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 	"github.com/brianluby/karakeep-extractor/internal/core/service"
 )
 
 func main() {
-	cfg := config.Load()
-
-	if cfg.KarakeepURL == "" || cfg.KarakeepToken == "" {
-		fmt.Println("Error: Karakeep URL and Token are required.")
-		fmt.Println("Please provide them via --url and --token flags or KARAKEEP_URL and KARAKEEP_TOKEN environment variables.")
+	// Subcommand handling
+	if len(os.Args) < 2 {
+		printUsage()
 		os.Exit(1)
 	}
 
-	// Initialize Karakeep Client
+	// Define subcommands
+	enrichCmd := flag.NewFlagSet("enrich", flag.ExitOnError)
+	enrichLimit := enrichCmd.Int("limit", 50, "Maximum number of repositories to process")
+	enrichForce := enrichCmd.Bool("force", false, "Force re-enrichment of processed repositories")
+	enrichToken := enrichCmd.String("token", "", "GitHub Personal Access Token (overrides env var)")
+
+	// Global flags logic is complex with subcommands if mixed. 
+	// We'll assume extract is default if no subcommand, or explicit 'extract' command.
+	// For now, let's support "extract" and "enrich" explicitly.
+	
+	command := os.Args[1]
+
+	switch command {
+	case "extract":
+		runExtract()
+	case "enrich":
+		// Parse flags for enrich
+		enrichCmd.Parse(os.Args[2:])
+		runEnrich(*enrichLimit, *enrichForce, *enrichToken)
+	default:
+		// Fallback to extract for backward compatibility or print usage?
+		// Plan implied "karakeep enrich" as a command.
+		printUsage()
+		os.Exit(1)
+	}
+}
+
+func printUsage() {
+	fmt.Println("Usage: karakeep <command> [flags]")
+	fmt.Println("Commands:")
+	fmt.Println("  extract    Run the extraction process")
+	fmt.Println("  enrich     Enrich extracted repositories with GitHub metadata")
+}
+
+func runExtract() {
+	// Create a dedicated FlagSet for extract to parse args after the subcommand
+	extractCmd := flag.NewFlagSet("extract", flag.ExitOnError)
+	var (
+		karakeepURL   = extractCmd.String("url", "", "Karakeep Base URL")
+		karakeepToken = extractCmd.String("token", "", "Karakeep API Token")
+		dbPath        = extractCmd.String("db", "./karakeep.db", "Path to SQLite database")
+	)
+
+	// Parse arguments starting from os.Args[2]
+	extractCmd.Parse(os.Args[2:])
+
+	// Load Env vars as fallback
+	if *karakeepURL == "" {
+		*karakeepURL = os.Getenv("KARAKEEP_URL")
+	}
+	if *karakeepToken == "" {
+		*karakeepToken = os.Getenv("KARAKEEP_TOKEN")
+	}
+	if *dbPath == "./karakeep.db" && os.Getenv("KARAKEEP_DB") != "" {
+		*dbPath = os.Getenv("KARAKEEP_DB")
+	}
+
+	if *karakeepURL == "" || *karakeepToken == "" {
+		fmt.Println("Error: Karakeep URL and Token are required.")
+		os.Exit(1)
+	}
+
 	domainCfg := &domain.KarakeepConfig{
-		BaseURL:  cfg.KarakeepURL,
-		APIToken: cfg.KarakeepToken,
+		BaseURL:  *karakeepURL,
+		APIToken: *karakeepToken,
 	}
-	karakeepClient := karakeep.NewClient(domainCfg)
+	client := karakeep.NewClient(domainCfg)
 
-	// Create a context with a timeout for initial operations
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	log.Printf("Pinging Karakeep instance at %s...", cfg.KarakeepURL)
-	if err := karakeepClient.Ping(ctx); err != nil {
-		log.Fatalf("Failed to connect to Karakeep: %v", err)
-	}
-	log.Println("Successfully connected to Karakeep.")
-
-	// Initialize SQLite Database and Repository
-	db, err := sql.Open("sqlite3", cfg.DBPath)
+	db, err := sql.Open("sqlite3", *dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open SQLite database at %s: %v", cfg.DBPath, err)
+		log.Fatalf("Failed to open DB: %v", err)
 	}
 	defer db.Close()
-
 	repo := sqlite.NewSQLiteRepository(db)
-	if err := repo.InitSchema(ctx); err != nil {
-		log.Fatalf("Failed to initialize database schema: %v", err)
+	if err := repo.InitSchema(context.Background()); err != nil {
+		log.Fatalf("Schema init failed: %v", err)
 	}
-	log.Printf("SQLite database initialized at %s", cfg.DBPath)
 
-	// Initialize Extractor Service
-	extractorService := service.NewExtractor(karakeepClient, repo)
-
-	log.Println("Starting extraction process...")
-	if err := extractorService.Extract(ctx); err != nil {
+	svc := service.NewExtractor(client, repo)
+	if err := svc.Extract(context.Background()); err != nil {
 		log.Fatalf("Extraction failed: %v", err)
 	}
-	log.Println("Extraction process completed successfully.")
+}
 
-	// TODO: Add summary statistics (e.g., total repos extracted)
-	os.Exit(0)
+func runEnrich(limit int, force bool, tokenOverride string) {
+	// Load base config for DB path
+	// We can't use config.Load() easily because it calls flag.Parse() which acts on global args.
+	// We'll just grab DB from Env or Default.
+	dbPath := os.Getenv("KARAKEEP_DB")
+	if dbPath == "" {
+		dbPath = "./karakeep.db"
+	}
+	
+	ghToken := os.Getenv("GITHUB_TOKEN")
+	if tokenOverride != "" {
+		ghToken = tokenOverride
+	}
+
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open DB: %v", err)
+	}
+	defer db.Close()
+	repo := sqlite.NewSQLiteRepository(db)
+	// Ensure schema is up to date (migrations)
+	if err := repo.InitSchema(context.Background()); err != nil {
+		log.Fatalf("Schema init failed: %v", err)
+	}
+
+	ghClient := github.NewClient(ghToken)
+	enricher := service.NewEnricher(repo, ghClient)
+
+	fmt.Printf("Starting enrichment (Limit: %d, Force: %t)...\n", limit, force)
+	success, failed, err := enricher.EnrichBatch(context.Background(), limit, force, 5) // 5 workers
+	
+	fmt.Printf("Enrichment complete.\nUpdated: %d\nErrors: %d\n", success, failed)
+	
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }

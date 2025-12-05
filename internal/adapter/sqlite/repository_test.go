@@ -116,3 +116,96 @@ func TestSQLiteRepository_SaveAndExists(t *testing.T) {
 		t.Errorf("Retrieved repo mismatch. Expected %+v, Got repo_id:%s, url:%s, source_id:%s, title:%s, found_at:%s", testRepo, repoID, url, sourceID, title, foundAt.String())
 	}
 }
+
+func TestSQLiteRepository_Enrichment(t *testing.T) {
+	db, dbPath := newTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	repo := NewSQLiteRepository(db)
+	ctx := context.Background()
+
+	if err := repo.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Seed data
+	seeds := []domain.ExtractedRepo{
+		{RepoID: "owner/repo1", URL: "https://github.com/owner/repo1", FoundAt: time.Now()},
+		{RepoID: "owner/repo2", URL: "https://github.com/owner/repo2", FoundAt: time.Now()},
+	}
+	for _, s := range seeds {
+		if err := repo.Save(ctx, s); err != nil {
+			t.Fatalf("Failed to seed repo %s: %v", s.RepoID, err)
+		}
+	}
+
+	// Test GetReposForEnrichment (Should return all initially as pending)
+	repos, err := repo.GetReposForEnrichment(ctx, 10, false)
+	if err != nil {
+		t.Fatalf("GetReposForEnrichment failed: %v", err)
+	}
+	if len(repos) != 2 {
+		t.Errorf("Expected 2 repos for enrichment, got %d", len(repos))
+	}
+
+	// Test UpdateRepoEnrichment
+	stars := 100
+	desc := "Test Description"
+	update := domain.RepoEnrichmentUpdate{
+		RepoID: "owner/repo1",
+		Stats: &domain.RepoStats{
+			Stars:       stars,
+			Description: desc,
+			LastPushed:  time.Now(),
+			Language:    "Go",
+			Forks:       10,
+		},
+		EnrichmentStatus: domain.StatusSuccess,
+	}
+
+	if err := repo.UpdateRepoEnrichment(ctx, update); err != nil {
+		t.Fatalf("UpdateRepoEnrichment failed: %v", err)
+	}
+
+	// Test GetReposForEnrichment again (Should return only repo2)
+	repos, err = repo.GetReposForEnrichment(ctx, 10, false)
+	if err != nil {
+		t.Fatalf("GetReposForEnrichment failed: %v", err)
+	}
+	if len(repos) != 1 {
+		t.Errorf("Expected 1 repo for enrichment, got %d", len(repos))
+	}
+	if repos[0].RepoID != "owner/repo2" {
+		t.Errorf("Expected repo2, got %s", repos[0].RepoID)
+	}
+
+	// Verify Update persisted
+	// Use GetReposForEnrichment with force=true to fetch enriched repo
+	// Or query direct. Let's rely on GetReposForEnrichment force logic if possible or just check force flag.
+	repos, err = repo.GetReposForEnrichment(ctx, 10, true) // Force get all
+	if err != nil {
+		t.Fatalf("GetReposForEnrichment force failed: %v", err)
+	}
+	
+	var enrichedRepo *domain.ExtractedRepo
+	for _, r := range repos {
+		if r.RepoID == "owner/repo1" {
+			enrichedRepo = r
+			break
+		}
+	}
+
+	if enrichedRepo == nil {
+		t.Fatal("Enriched repo not found in results")
+	}
+	if enrichedRepo.Stars == nil || *enrichedRepo.Stars != stars {
+		t.Errorf("Expected stars %d, got %v", stars, enrichedRepo.Stars)
+	}
+	if enrichedRepo.Description == nil || *enrichedRepo.Description != desc {
+		t.Errorf("Expected description %s, got %v", desc, enrichedRepo.Description)
+	}
+	if enrichedRepo.EnrichmentStatus != domain.StatusSuccess {
+		t.Errorf("Expected status SUCCESS, got %s", enrichedRepo.EnrichmentStatus)
+	}
+}
