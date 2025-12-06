@@ -6,7 +6,7 @@ import (
 
 // BookmarkSource Interface for fetching bookmarks.
 type BookmarkSource interface {
-	FetchBookmarks(ctx context.Context, page int) ([]RawBookmark, error)
+	FetchBookmarks(ctx context.Context) ([]RawBookmark, error)
 }
 
 // RepoRepository Interface for persisting extracted repositories.

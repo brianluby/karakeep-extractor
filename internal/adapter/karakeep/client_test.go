@@ -104,19 +104,38 @@ func TestFetchBookmarks(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		page := r.URL.Query().Get("page")
-		if page == "" || page == "1" {
-			json.NewEncoder(w).Encode([]domain.RawBookmark{
-				{ID: "1", URL: "https://github.com/repo1", Title: "Repo 1", Content: ""},
-				{ID: "2", URL: "https://example.com/article1", Title: "Article 1", Content: ""},
-			})
-		} else if page == "2" {
-			json.NewEncoder(w).Encode([]domain.RawBookmark{
-				{ID: "3", URL: "https://github.com/repo2", Title: "Repo 2", Content: ""},
-			})
-		} else {
-			json.NewEncoder(w).Encode([]domain.RawBookmark{})
+		// Return all bookmarks in one go, wrapped in "bookmarks"
+		response := struct {
+			Bookmarks []domain.RawBookmark `json:"bookmarks"`
+		}{
+			Bookmarks: []domain.RawBookmark{
+				{
+					ID: "1",
+					Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/repo1", Title: "Repo 1", Description: ""},
+				},
+				{
+					ID: "2",
+					Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://example.com/article1", Title: "Article 1", Description: ""},
+				},
+				{
+					ID: "3",
+					Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/repo2", Title: "Repo 2", Description: ""},
+				},
+			},
 		}
+		json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -126,36 +145,18 @@ func TestFetchBookmarks(t *testing.T) {
 	}
 	client := karakeep.NewClient(cfg)
 
-	// Test case 1: Fetch page 1
-	bookmarks, err := client.FetchBookmarks(context.Background(), 1)
+	// Test case: Fetch all bookmarks
+	bookmarks, err := client.FetchBookmarks(context.Background())
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if len(bookmarks) != 2 {
-		t.Errorf("Expected 2 bookmarks, got %d", len(bookmarks))
+	if len(bookmarks) != 3 {
+		t.Errorf("Expected 3 bookmarks, got %d", len(bookmarks))
 	}
-	if bookmarks[0].URL != "https://github.com/repo1" {
-		t.Errorf("Expected URL https://github.com/repo1, got %s", bookmarks[0].URL)
+	if bookmarks[0].Content.URL != "https://github.com/repo1" {
+		t.Errorf("Expected URL https://github.com/repo1, got %s", bookmarks[0].Content.URL)
 	}
-
-	// Test case 2: Fetch page 2
-	bookmarks2, err2 := client.FetchBookmarks(context.Background(), 2)
-	if err2 != nil {
-		t.Fatalf("Expected no error, got %v", err2)
-	}
-	if len(bookmarks2) != 1 {
-		t.Errorf("Expected 1 bookmark, got %d", len(bookmarks2))
-	}
-	if bookmarks2[0].URL != "https://github.com/repo2" {
-		t.Errorf("Expected URL https://github.com/repo2, got %s", bookmarks2[0].URL)
-	}
-
-	// Test case 3: Fetch empty page
-	bookmarks3, err3 := client.FetchBookmarks(context.Background(), 3)
-	if err3 != nil {
-		t.Fatalf("Expected no error, got %v", err3)
-	}
-	if len(bookmarks3) != 0 {
-		t.Errorf("Expected 0 bookmarks, got %d", len(bookmarks3))
+	if bookmarks[2].Content.URL != "https://github.com/repo2" {
+		t.Errorf("Expected URL https://github.com/repo2, got %s", bookmarks[2].Content.URL)
 	}
 }

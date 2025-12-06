@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -150,17 +151,17 @@ func handleErrorResponse(resp *http.Response) error {
 
 
 // FetchBookmarks fetches bookmarks from the Karakeep API.
-func (c *Client) FetchBookmarks(ctx context.Context, page int) ([]domain.RawBookmark, error) {
+func (c *Client) FetchBookmarks(ctx context.Context) ([]domain.RawBookmark, error) {
 	baseURL := strings.TrimSuffix(c.Config.BaseURL, "/")
-	url := fmt.Sprintf("%s/bookmarks?page=%d", baseURL, page)
+	url := fmt.Sprintf("%s/bookmarks?archived=false&includeContent=true", baseURL)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request for page %d: %w", page, err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch bookmarks for page %d: %w", page, err)
+		return nil, fmt.Errorf("failed to fetch bookmarks: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -168,11 +169,17 @@ func (c *Client) FetchBookmarks(ctx context.Context, page int) ([]domain.RawBook
 		return nil, handleErrorResponse(resp)
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	var response struct {
 		Bookmarks []domain.RawBookmark `json:"bookmarks"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode bookmarks for page %d: %w", page, err)
+	
+	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+		return nil, fmt.Errorf("failed to decode bookmarks: %w", err)
 	}
 
 	return response.Bookmarks, nil

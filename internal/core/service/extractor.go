@@ -27,69 +27,67 @@ func NewExtractor(source domain.BookmarkSource, repository domain.RepoRepository
 
 // Extract fetches bookmarks, filters for GitHub repos, normalizes URLs, and saves them.
 func (e *Extractor) Extract(ctx context.Context, reporter domain.ProgressReporter) error {
-	reporter.Start(-1, "Extracting bookmarks")
-	currentPage := 1
+	reporter.SetStatus("Fetching all bookmarks...")
+	bookmarks, err := e.Source.FetchBookmarks(ctx)
+	if err != nil {
+		reporter.Error(err)
+		return fmt.Errorf("failed to fetch all bookmarks: %w", err)
+	}
+
+	if len(bookmarks) == 0 {
+		reporter.Log("No bookmarks found.")
+		reporter.Finish("Extraction complete: 0 new repositories.")
+		return nil
+	}
+	
+	reporter.Start(len(bookmarks), "Processing bookmarks")
 	extractedCount := 0
 
-	for {
-		reporter.SetStatus(fmt.Sprintf("Fetching page %d", currentPage))
-		bookmarks, err := e.Source.FetchBookmarks(ctx, currentPage)
+	for _, bm := range bookmarks {
+		targetURL := bm.Content.URL
+		normalizedRepoID, isGitHub := NormalizeGitHubURL(targetURL)
+		if !isGitHub {
+			continue // Skip non-GitHub URLs
+		}
+
+		// Check for malformed URL after normalization attempt
+		if normalizedRepoID == "" {
+			reporter.Log(fmt.Sprintf("Skipping malformed URL in bookmark ID %s: %s", bm.ID, targetURL))
+			continue
+		}
+
+		exists, err := e.Repository.Exists(ctx, normalizedRepoID)
 		if err != nil {
-			reporter.Error(err)
-			return fmt.Errorf("failed to fetch bookmarks page %d: %w", currentPage, err)
+			reporter.Log(fmt.Sprintf("Error checking existence for %s: %v", normalizedRepoID, err))
+			continue
+		}
+		if exists {
+			// log.Printf("Skipping duplicate repo: %s", normalizedRepoID)
+			continue
 		}
 
-		if len(bookmarks) == 0 {
-			break // No more bookmarks
+		// Determine Title
+		title := bm.Content.Title
+		if bm.Title != nil && *bm.Title != "" {
+			title = *bm.Title
 		}
 
-		for _, bm := range bookmarks {
-			targetURL := bm.Content.URL
-			normalizedRepoID, isGitHub := NormalizeGitHubURL(targetURL)
-			if !isGitHub {
-				continue // Skip non-GitHub URLs
-			}
-
-			// Check for malformed URL after normalization attempt
-			if normalizedRepoID == "" {
-				reporter.Log(fmt.Sprintf("Skipping malformed URL in bookmark ID %s: %s", bm.ID, targetURL))
-				continue
-			}
-
-			exists, err := e.Repository.Exists(ctx, normalizedRepoID)
-			if err != nil {
-				reporter.Log(fmt.Sprintf("Error checking existence for %s: %v", normalizedRepoID, err))
-				continue
-			}
-			if exists {
-				// log.Printf("Skipping duplicate repo: %s", normalizedRepoID)
-				continue
-			}
-
-			// Determine Title
-			title := bm.Content.Title
-			if bm.Title != nil && *bm.Title != "" {
-				title = *bm.Title
-			}
-
-			repo := domain.ExtractedRepo{
-				RepoID:   normalizedRepoID,
-				URL:      targetURL, // Keep original URL for now, can be normalized later if needed
-				SourceID: bm.ID,
-				Title:    title,
-				FoundAt:  time.Now(),
-			}
-
-			if err := e.Repository.Save(ctx, repo); err != nil {
-				reporter.Log(fmt.Sprintf("Error saving repo %s: %v", normalizedRepoID, err))
-				continue
-			}
-			extractedCount++
-			reporter.Increment()
+		repo := domain.ExtractedRepo{
+			RepoID:   normalizedRepoID,
+			URL:      targetURL, // Keep original URL for now, can be normalized later if needed
+			SourceID: bm.ID,
+			Title:    title,
+			FoundAt:  time.Now(),
 		}
-		currentPage++
+
+		if err := e.Repository.Save(ctx, repo); err != nil {
+			reporter.Log(fmt.Sprintf("Error saving repo %s: %v", normalizedRepoID, err))
+			continue
+		}
+		extractedCount++
+		reporter.Increment()
 	}
-	reporter.Finish(fmt.Sprintf("Extracted %d new repositories", extractedCount))
+	reporter.Finish(fmt.Sprintf("Extraction complete: %d new repositories found.", extractedCount))
 	return nil
 }
 

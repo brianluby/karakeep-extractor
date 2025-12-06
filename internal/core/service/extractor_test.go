@@ -15,12 +15,12 @@ type mockBookmarkSource struct {
 	callCount int
 }
 
-func (m *mockBookmarkSource) FetchBookmarks(ctx context.Context, page int) ([]domain.RawBookmark, error) {
+func (m *mockBookmarkSource) FetchBookmarks(ctx context.Context) ([]domain.RawBookmark, error) {
 	if m.callCount >= len(m.bookmarks) {
-		return nil, nil // No more pages
+		return nil, nil // No more pages (shouldn't happen with non-paginated API)
 	}
 	res := m.bookmarks[m.callCount]
-	m.callCount++
+	m.callCount++ // Still increment to "return" new content if multiple calls are made
 	return res, nil
 }
 
@@ -115,8 +115,6 @@ func TestExtractService_Extract(t *testing.T) {
 						Title       string `json:"title"`
 						Description string `json:"description"`
 					}{URL: "https://github.com/ownerB/repoB", Title: "Repo B"}},
-				},
-				{
 					{ID: "12", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
@@ -232,24 +230,26 @@ func TestNormalizeGitHubURL(t *testing.T) {
 }
 
 func TestExtractService_Extract_FullPagination(t *testing.T) {
-	// Create a mock source that returns multiple pages
+	// Create a mock source that returns all items in one call
 	mockSource := &mockBookmarkSource{
 		bookmarks: [][]domain.RawBookmark{
-			{{ID: "1", Content: struct {
-				URL         string `json:"url"`
-				Title       string `json:"title"`
-				Description string `json:"description"`
-			}{URL: "https://github.com/a/b", Title: "Page 1 Repo"}}},
-			{{ID: "2", Content: struct {
-				URL         string `json:"url"`
-				Title       string `json:"title"`
-				Description string `json:"description"`
-			}{URL: "https://github.com/c/d", Title: "Page 2 Repo"}}},
-			{{ID: "3", Content: struct {
-				URL         string `json:"url"`
-				Title       string `json:"title"`
-				Description string `json:"description"`
-			}{URL: "https://github.com/e/f", Title: "Page 3 Repo"}}},
+			{
+				{ID: "1", Content: struct {
+					URL         string `json:"url"`
+					Title       string `json:"title"`
+					Description string `json:"description"`
+				}{URL: "https://github.com/a/b", Title: "Repo A"}},
+				{ID: "2", Content: struct {
+					URL         string `json:"url"`
+					Title       string `json:"title"`
+					Description string `json:"description"`
+				}{URL: "https://github.com/c/d", Title: "Repo C"}},
+				{ID: "3", Content: struct {
+					URL         string `json:"url"`
+					Title       string `json:"title"`
+					Description string `json:"description"`
+				}{URL: "https://github.com/e/f", Title: "Repo E"}},
+			},
 		},
 	}
 	mockRepo := newMockRepoRepository()
