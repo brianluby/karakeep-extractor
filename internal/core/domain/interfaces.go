@@ -2,32 +2,35 @@ package domain
 
 import (
 	"context"
-	"io"
 )
 
-// BookmarkSource Port: Source (Secondary)
+// BookmarkSource Interface for fetching bookmarks.
 type BookmarkSource interface {
 	FetchBookmarks(ctx context.Context, page int) ([]RawBookmark, error)
 }
 
-// RepoEnrichmentUpdate defines the fields to update for an enrichment operation.
-type RepoEnrichmentUpdate struct {
-	RepoID           string
-	Stats            *RepoStats // Can be nil if only status updates
-	EnrichmentStatus EnrichmentStatus
-}
-
-// RepoRepository Port: Storage (Secondary)
+// RepoRepository Interface for persisting extracted repositories.
 type RepoRepository interface {
 	Save(ctx context.Context, repo ExtractedRepo) error
 	Exists(ctx context.Context, repoID string) (bool, error)
-
-	// GetReposForEnrichment returns up to 'limit' repos that need enrichment.
-	// If force is true, returns any repo. If false, only those with EnrichmentStatus != SUCCESS.
 	GetReposForEnrichment(ctx context.Context, limit int, force bool) ([]*ExtractedRepo, error)
-
-	// UpdateRepoEnrichment updates the stats and status of a repository.
 	UpdateRepoEnrichment(ctx context.Context, update RepoEnrichmentUpdate) error
+}
+
+type RepoEnrichmentUpdate struct {
+	RepoID           string
+	Stats            *RepoStats
+	EnrichmentStatus EnrichmentStatus
+}
+
+// GitHubClient Interface for fetching metadata from GitHub.
+type GitHubClient interface {
+	GetRepoStats(ctx context.Context, owner, name string) (*RepoStats, int, error)
+}
+
+// RankingRepository interface for querying ranked repos (ReadOnly usually)
+type RankingRepository interface {
+	GetRankedRepos(ctx context.Context, limit int, sortBy RankSortOption, tagFilter string) ([]ExtractedRepo, error)
 }
 
 type RankSortOption string
@@ -38,29 +41,31 @@ const (
 	SortByUpdated RankSortOption = "updated"
 )
 
-type RankingRepository interface {
-	// GetRankedRepos returns a list of repos sorted by the criteria and filtered by tag.
-	GetRankedRepos(ctx context.Context, limit int, sortBy RankSortOption, filterTag string) ([]ExtractedRepo, error)
-}
-
-// GitHubClient Port: Source (Secondary)
-type GitHubClient interface {
-	// GetRepoStats fetches metadata for a single repo.
-	// Returns stats, remaining rate limit, and error.
-	// Returns specific error for 404.
-	GetRepoStats(ctx context.Context, owner, repo string) (*RepoStats, int, error)
-}
-
-// Exporter Port: Output (Primary/Secondary)
-// Responsible for formatting the output to a specific stream.
-type Exporter interface {
-	// Export writes the repositories to the provided writer in the specific format.
-	Export(repos []ExtractedRepo, w io.Writer) error
-}
-
-// Sink Port: Output (Secondary)
-// Responsible for sending the data to an external system.
+// Sink interface for exporting data to external services
 type Sink interface {
-	// Send transmits the repository list to the configured endpoint.
 	Send(ctx context.Context, repos []ExtractedRepo) error
+}
+
+// ProgressReporter abstracts the output mechanism (CLI logs vs TUI updates).
+type ProgressReporter interface {
+	// Start initializes the progress tracking.
+	// total: expected number of items (-1 if unknown).
+	// title: description of the task.
+	Start(total int, title string)
+
+	// Increment adds to the processed count.
+	Increment()
+
+	// SetStatus updates the description of the current item being processed.
+	SetStatus(status string)
+
+	// Log records a message (info/error) without stopping the process.
+	// In TUI mode, this goes to the log tail. In text mode, this is stderr/stdout.
+	Log(message string)
+
+	// Error records an error specifically (may be highlighted differently).
+	Error(err error)
+
+	// Finish signals completion with a summary message.
+	Finish(summary string)
 }

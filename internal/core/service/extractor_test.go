@@ -56,6 +56,16 @@ func (m *mockRepoRepository) UpdateRepoEnrichment(ctx context.Context, update do
 	return nil
 }
 
+// MockReporter for testing
+type mockReporter struct{}
+
+func (m *mockReporter) Start(total int, title string)   {}
+func (m *mockReporter) Increment()                      {}
+func (m *mockReporter) SetStatus(status string)         {}
+func (m *mockReporter) Log(message string)              {}
+func (m *mockReporter) Error(err error)                 {}
+func (m *mockReporter) Finish(summary string)           {}
+
 func TestExtractService_Extract(t *testing.T) {
 	testCases := []struct {
 		name              string
@@ -68,9 +78,21 @@ func TestExtractService_Extract(t *testing.T) {
 			name: "single page, mixed bookmarks, no duplicates",
 			rawBookmarks: [][]domain.RawBookmark{
 				{
-					{ID: "1", URL: "https://github.com/owner1/repo1", Title: "Repo One"},
-					{ID: "2", URL: "https://example.com/not-github", Title: "Non-GitHub"},
-					{ID: "3", URL: "https://github.com/owner2/repo2.git", Title: "Repo Two"},
+					{ID: "1", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/owner1/repo1", Title: "Repo One"}},
+					{ID: "2", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://example.com/not-github", Title: "Non-GitHub"}},
+					{ID: "3", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/owner2/repo2.git", Title: "Repo Two"}},
 				},
 			},
 			expectedRepos: []domain.ExtractedRepo{
@@ -83,12 +105,28 @@ func TestExtractService_Extract(t *testing.T) {
 			name: "multiple pages, github links, deduplication",
 			rawBookmarks: [][]domain.RawBookmark{
 				{
-					{ID: "10", URL: "https://github.com/ownerA/repoA", Title: "Repo A"},
-					{ID: "11", URL: "https://github.com/ownerB/repoB", Title: "Repo B"},
+					{ID: "10", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/ownerA/repoA", Title: "Repo A"}},
+					{ID: "11", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/ownerB/repoB", Title: "Repo B"}},
 				},
 				{
-					{ID: "12", URL: "http://github.com/ownerA/repoA/", Title: "Repo A Dupe"}, // Duplicate
-					{ID: "13", URL: "https://github.com/ownerC/repoC?ref=master", Title: "Repo C"},
+					{ID: "12", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "http://github.com/ownerA/repoA/", Title: "Repo A Dupe"}}, // Duplicate
+					{ID: "13", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/ownerC/repoC?ref=master", Title: "Repo C"}},
 				},
 			},
 			expectedRepos: []domain.ExtractedRepo{
@@ -102,9 +140,21 @@ func TestExtractService_Extract(t *testing.T) {
 			name: "malformed URL handling",
 			rawBookmarks: [][]domain.RawBookmark{
 				{
-					{ID: "1", URL: "https://github.com/good/repo", Title: "Good Repo"},
-					{ID: "2", URL: "ftp://bad-url.com", Title: "Bad URL"},
-					{ID: "3", URL: "invalid-url", Title: "Another Bad URL"},
+					{ID: "1", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "https://github.com/good/repo", Title: "Good Repo"}},
+					{ID: "2", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "ftp://bad-url.com", Title: "Bad URL"}},
+					{ID: "3", Content: struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						Description string `json:"description"`
+					}{URL: "invalid-url", Title: "Another Bad URL"}},
 				},
 			},
 			expectedRepos: []domain.ExtractedRepo{
@@ -121,7 +171,7 @@ func TestExtractService_Extract(t *testing.T) {
 			mockRepo := newMockRepoRepository()
 			extractor := service.NewExtractor(mockSource, mockRepo)
 
-			err := extractor.Extract(context.Background())
+			err := extractor.Extract(context.Background(), &mockReporter{})
 			if tc.expectedError && err == nil {
 				t.Errorf("Expected an error but got none")
 			}
@@ -144,15 +194,6 @@ func TestExtractService_Extract(t *testing.T) {
 				if found.RepoID != expected.RepoID || found.URL != expected.URL || found.SourceID != expected.SourceID || found.Title != expected.Title {
 					t.Errorf("Mismatch for RepoID %s. Expected %+v, Got %+v", expected.RepoID, expected, found)
 				}
-			}
-			// Basic log check for malformed URLs
-			// In a real scenario, you'd capture logs and assert against them
-			// For simplicity, we just check if it's expected without deep parsing.
-			if tc.expectedLogOutput != "" {
-				// This part is difficult to test directly without capturing os.Stderr or log output
-				// For this exercise, we'll assume the log statement will be there
-				// and focus on functional correctness (skipped malformed URLs)
-				// A more robust test would use a log.Logger with a custom writer
 			}
 		})
 	}
@@ -194,15 +235,27 @@ func TestExtractService_Extract_FullPagination(t *testing.T) {
 	// Create a mock source that returns multiple pages
 	mockSource := &mockBookmarkSource{
 		bookmarks: [][]domain.RawBookmark{
-			{{ID: "1", URL: "https://github.com/a/b", Title: "Page 1 Repo"}},
-			{{ID: "2", URL: "https://github.com/c/d", Title: "Page 2 Repo"}},
-			{{ID: "3", URL: "https://github.com/e/f", Title: "Page 3 Repo"}},
+			{{ID: "1", Content: struct {
+				URL         string `json:"url"`
+				Title       string `json:"title"`
+				Description string `json:"description"`
+			}{URL: "https://github.com/a/b", Title: "Page 1 Repo"}}},
+			{{ID: "2", Content: struct {
+				URL         string `json:"url"`
+				Title       string `json:"title"`
+				Description string `json:"description"`
+			}{URL: "https://github.com/c/d", Title: "Page 2 Repo"}}},
+			{{ID: "3", Content: struct {
+				URL         string `json:"url"`
+				Title       string `json:"title"`
+				Description string `json:"description"`
+			}{URL: "https://github.com/e/f", Title: "Page 3 Repo"}}},
 		},
 	}
 	mockRepo := newMockRepoRepository()
 	extractor := service.NewExtractor(mockSource, mockRepo)
 
-	err := extractor.Extract(context.Background())
+	err := extractor.Extract(context.Background(), &mockReporter{})
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

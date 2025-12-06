@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -27,11 +26,16 @@ func NewExtractor(source domain.BookmarkSource, repository domain.RepoRepository
 }
 
 // Extract fetches bookmarks, filters for GitHub repos, normalizes URLs, and saves them.
-func (e *Extractor) Extract(ctx context.Context) error {
+func (e *Extractor) Extract(ctx context.Context, reporter domain.ProgressReporter) error {
+	reporter.Start(-1, "Extracting bookmarks")
 	currentPage := 1
+	extractedCount := 0
+
 	for {
+		reporter.SetStatus(fmt.Sprintf("Fetching page %d", currentPage))
 		bookmarks, err := e.Source.FetchBookmarks(ctx, currentPage)
 		if err != nil {
+			reporter.Error(err)
 			return fmt.Errorf("failed to fetch bookmarks page %d: %w", currentPage, err)
 		}
 
@@ -40,20 +44,21 @@ func (e *Extractor) Extract(ctx context.Context) error {
 		}
 
 		for _, bm := range bookmarks {
-			normalizedRepoID, isGitHub := NormalizeGitHubURL(bm.URL)
+			targetURL := bm.Content.URL
+			normalizedRepoID, isGitHub := NormalizeGitHubURL(targetURL)
 			if !isGitHub {
 				continue // Skip non-GitHub URLs
 			}
 
 			// Check for malformed URL after normalization attempt
 			if normalizedRepoID == "" {
-				log.Printf("Skipping malformed URL in bookmark ID %s: %s", bm.ID, bm.URL)
+				reporter.Log(fmt.Sprintf("Skipping malformed URL in bookmark ID %s: %s", bm.ID, targetURL))
 				continue
 			}
 
 			exists, err := e.Repository.Exists(ctx, normalizedRepoID)
 			if err != nil {
-				log.Printf("Error checking existence for %s: %v", normalizedRepoID, err)
+				reporter.Log(fmt.Sprintf("Error checking existence for %s: %v", normalizedRepoID, err))
 				continue
 			}
 			if exists {
@@ -61,21 +66,30 @@ func (e *Extractor) Extract(ctx context.Context) error {
 				continue
 			}
 
+			// Determine Title
+			title := bm.Content.Title
+			if bm.Title != nil && *bm.Title != "" {
+				title = *bm.Title
+			}
+
 			repo := domain.ExtractedRepo{
 				RepoID:   normalizedRepoID,
-				URL:      bm.URL, // Keep original URL for now, can be normalized later if needed
+				URL:      targetURL, // Keep original URL for now, can be normalized later if needed
 				SourceID: bm.ID,
-				Title:    bm.Title,
+				Title:    title,
 				FoundAt:  time.Now(),
 			}
 
 			if err := e.Repository.Save(ctx, repo); err != nil {
-				log.Printf("Error saving repo %s: %v", normalizedRepoID, err)
+				reporter.Log(fmt.Sprintf("Error saving repo %s: %v", normalizedRepoID, err))
 				continue
 			}
+			extractedCount++
+			reporter.Increment()
 		}
 		currentPage++
 	}
+	reporter.Finish(fmt.Sprintf("Extracted %d new repositories", extractedCount))
 	return nil
 }
 

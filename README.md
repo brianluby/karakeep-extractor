@@ -22,39 +22,40 @@ It helps you turn a static list of bookmarks into an actionable, ranked intellig
 ```bash
 git clone https://github.com/brianluby/karakeep-extractor.git
 cd karakeep-extractor
-go build -o karakeep cmd/extractor/main.go
+go build -o karakeep-extractor cmd/extractor/main.go
 # Move to your PATH
-sudo mv karakeep /usr/local/bin/
+sudo mv karakeep-extractor /usr/local/bin/
 ```
 
 ## 🚀 Quick Start
 
 ### 1. Setup
 Configure your API credentials once. This saves them to `~/.config/karakeep/config.yaml`.
+When prompted for the SQLite Database Path, ensure you provide a full path **including a filename** (e.g., `~/karakeep-extractor/karakeep.db` or `./karakeep.db`).
 
 ```bash
-karakeep setup
+karakeep-extractor setup
 ```
 
 ### 2. Extract
 Fetch your latest bookmarks.
 
 ```bash
-karakeep extract
+karakeep-extractor extract
 ```
 
 ### 3. Enrich
 Fetch metadata for the extracted repositories (respects rate limits).
 
 ```bash
-karakeep enrich
+karakeep-extractor enrich
 ```
 
 ### 4. Rank
 View your top 20 repositories by star count.
 
 ```bash
-karakeep rank
+karakeep-extractor rank
 ```
 
 ## 📚 Documentation

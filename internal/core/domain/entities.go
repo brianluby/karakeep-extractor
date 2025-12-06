@@ -10,10 +10,13 @@ type KarakeepConfig struct {
 
 // RawBookmark Represents a bookmark as returned by the Karakeep API.
 type RawBookmark struct {
-	ID      string `json:"id"` // Karakeep ID can be int or string, using string for flexibility
-	URL     string `json:"url"`
-	Title   string `json:"title"`
-	Content string `json:"content"` // Description or summary content (may contain links).
+	ID      string `json:"id"`
+	Title   *string `json:"title"` // Top-level title can be null
+	Content struct {
+		URL         string `json:"url"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	} `json:"content"`
 }
 
 type EnrichmentStatus string

@@ -29,7 +29,7 @@ type EnrichmentResult struct {
 	Err    error
 }
 
-func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, workers int) (int, int, error) {
+func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, workers int, reporter domain.ProgressReporter) (int, int, error) {
 	repos, err := e.repo.GetReposForEnrichment(ctx, limit, force)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to get repos for enrichment: %w", err)
@@ -38,6 +38,9 @@ func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, worke
 	if len(repos) == 0 {
 		return 0, 0, nil
 	}
+
+	// Initialize Reporter
+	reporter.Start(len(repos), "Enriching repositories")
 
 	// Create a cancellable context for this batch
 	ctx, cancel := context.WithCancel(ctx)
@@ -57,7 +60,7 @@ func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, worke
 				if ctx.Err() != nil {
 					return
 				}
-				e.processRepo(ctx, repo, resCh)
+				e.processRepo(ctx, repo, resCh, reporter)
 			}
 		}()
 	}
@@ -86,24 +89,31 @@ func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, worke
 			// Ideally, processRepo returns a specific error type we can check.
 			if res.Status == domain.StatusAPIError && res.Err != nil && errors.Is(res.Err, domain.ErrRateLimitExceeded) {
 				cancel() // Stop all other workers immediately
+				reporter.Error(domain.ErrRateLimitExceeded)
 				return successCount, errCount, domain.ErrRateLimitExceeded
 			}
 		}
+		reporter.Increment()
 	}
+	
+	reporter.Finish(fmt.Sprintf("Enriched: %d, Failed: %d", successCount, errCount))
 
 	return successCount, errCount, nil
 }
 
-func (e *Enricher) processRepo(ctx context.Context, repo *domain.ExtractedRepo, resCh chan<- EnrichmentResult) {
+func (e *Enricher) processRepo(ctx context.Context, repo *domain.ExtractedRepo, resCh chan<- EnrichmentResult, reporter domain.ProgressReporter) {
 	// Parse Owner/Repo from URL or RepoID
 	// Assuming RepoID is already "owner/repo" as per domain
 	parts := strings.Split(repo.RepoID, "/")
 	if len(parts) != 2 {
-		resCh <- EnrichmentResult{RepoID: repo.RepoID, Status: domain.StatusAPIError, Err: fmt.Errorf("invalid repo id format")}
+		err := fmt.Errorf("invalid repo id format")
+		reporter.Log(fmt.Sprintf("Skipping %s: %v", repo.RepoID, err))
+		resCh <- EnrichmentResult{RepoID: repo.RepoID, Status: domain.StatusAPIError, Err: err}
 		return
 	}
 	owner, name := parts[0], parts[1]
 
+	reporter.SetStatus(fmt.Sprintf("Enriching %s", repo.RepoID))
 	stats, _, err := e.client.GetRepoStats(ctx, owner, name)
 	
 	update := domain.RepoEnrichmentUpdate{
@@ -116,13 +126,16 @@ func (e *Enricher) processRepo(ctx context.Context, repo *domain.ExtractedRepo, 
 			update.EnrichmentStatus = domain.StatusAPIError // Or keep pending?
 			// We don't update DB on rate limit to retry later? Or mark API_ERROR?
 			// Plan says "Save progress and exit". API_ERROR allows retry if logic permits.
+			reporter.Log(fmt.Sprintf("Rate limit exceeded for %s", repo.RepoID))
 			resCh <- EnrichmentResult{RepoID: repo.RepoID, Status: domain.StatusAPIError, Err: err}
 			return
 		}
 		if errors.Is(err, domain.ErrRepoNotFound) {
 			update.EnrichmentStatus = domain.StatusNotFound
+			reporter.Log(fmt.Sprintf("Repo not found: %s", repo.RepoID))
 		} else {
 			update.EnrichmentStatus = domain.StatusAPIError
+			reporter.Log(fmt.Sprintf("API error for %s: %v", repo.RepoID, err))
 		}
 	} else {
 		update.Stats = stats
@@ -131,6 +144,7 @@ func (e *Enricher) processRepo(ctx context.Context, repo *domain.ExtractedRepo, 
 
 	// Persist
 	if saveErr := e.repo.UpdateRepoEnrichment(ctx, update); saveErr != nil {
+		reporter.Log(fmt.Sprintf("Save failed for %s: %v", repo.RepoID, saveErr))
 		resCh <- EnrichmentResult{RepoID: repo.RepoID, Status: domain.StatusAPIError, Err: fmt.Errorf("save failed: %w", saveErr)}
 		return
 	}

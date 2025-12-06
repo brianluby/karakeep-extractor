@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	gh "github.com/brianluby/karakeep-extractor/internal/adapter/github"
@@ -43,6 +44,7 @@ func main() {
 	enrichLimit := enrichCmd.Int("limit", 50, "Maximum number of repositories to process")
 	enrichForce := enrichCmd.Bool("force", false, "Force re-enrichment of processed repositories")
 	enrichToken := enrichCmd.String("token", "", "GitHub Personal Access Token (overrides env var)")
+	enrichTui := enrichCmd.Bool("tui", false, "Enable TUI mode")
 
 	rankCmd := flag.NewFlagSet("rank", flag.ExitOnError)
 	rankLimit := rankCmd.Int("limit", 20, "Number of repositories to display")
@@ -66,22 +68,19 @@ func main() {
 	case "enrich":
 		// Parse flags for enrich
 		enrichCmd.Parse(os.Args[2:])
-		runEnrich(*enrichLimit, *enrichForce, *enrichToken)
+		runEnrich(*enrichLimit, *enrichForce, *enrichToken, *enrichTui)
 	case "rank":
 		rankCmd.Parse(os.Args[2:])
 		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders, *rankSinkTrillium, *rankTag)
 	case "setup":
-		// Fallback to extract for backward compatibility or print usage?
-		// Plan implied "karakeep enrich" as a command.
-		printUsage()
-		os.Exit(1)
+		runSetup()
 	}
 }
 
 func printUsage() {
 	fmt.Println("Karakeep Extractor - Intelligence for your bookmarks")
 	fmt.Println("")
-	fmt.Println("Usage: karakeep <command> [flags]")
+	fmt.Println("Usage: karakeep-extractor <command> [flags]")
 	fmt.Println("")
 	fmt.Println("Commands:")
 	fmt.Println("  setup      Run the interactive configuration wizard to set API tokens and URLs.")
@@ -89,34 +88,62 @@ func printUsage() {
 	fmt.Println("  enrich     Fetch metadata (stars, forks, etc.) from GitHub for extracted repositories.")
 	fmt.Println("  rank       Display, filter, and export a ranked list of repositories.")
 	fmt.Println("")
-	fmt.Println("Run 'karakeep <command> --help' for command-specific flags.")
+	fmt.Println("Run 'karakeep-extractor <command> --help' for command-specific flags.")
 }
 
 func runExtract() {
+	// Load Config first to get defaults from file
+	loader := config.NewConfigLoader()
+	cfg, err := loader.LoadConfig(nil)
+	if err != nil {
+		// It's okay if config file doesn't exist, we'll fallback to flags/env
+		// but if it exists and is malformed, maybe warn?
+	}
+
 	// Create a dedicated FlagSet for extract to parse args after the subcommand
 	extractCmd := flag.NewFlagSet("extract", flag.ExitOnError)
 	var (
 		karakeepURL   = extractCmd.String("url", "", "Karakeep Base URL")
 		karakeepToken = extractCmd.String("token", "", "Karakeep API Token")
-		dbPath        = extractCmd.String("db", "./karakeep.db", "Path to SQLite database")
+		dbPath        = extractCmd.String("db", "", "Path to SQLite database")
+		tuiMode       = extractCmd.Bool("tui", false, "Enable TUI mode")
 	)
 
 	// Parse arguments starting from os.Args[2]
 	extractCmd.Parse(os.Args[2:])
 
-	// Load Env vars as fallback
+	// Precedence: Flag > Env > Config File > Default
+
+	// 1. URL
 	if *karakeepURL == "" {
 		*karakeepURL = os.Getenv("KARAKEEP_URL")
 	}
+	if *karakeepURL == "" && cfg != nil {
+		*karakeepURL = cfg.KarakeepURL
+	}
+
+	// 2. Token
 	if *karakeepToken == "" {
 		*karakeepToken = os.Getenv("KARAKEEP_TOKEN")
 	}
-	if *dbPath == "./karakeep.db" && os.Getenv("KARAKEEP_DB") != "" {
+	if *karakeepToken == "" && cfg != nil {
+		*karakeepToken = cfg.KarakeepToken
+	}
+
+	// 3. DB Path
+	if *dbPath == "" {
 		*dbPath = os.Getenv("KARAKEEP_DB")
+	}
+	if *dbPath == "" && cfg != nil {
+		*dbPath = cfg.DBPath
+	}
+	if *dbPath == "" {
+		*dbPath = "./karakeep.db" // Final default
 	}
 
 	if *karakeepURL == "" || *karakeepToken == "" {
 		fmt.Println("Error: Karakeep URL and Token are required.")
+		fmt.Println("Run 'karakeep-extractor setup' or provide via flags/env.")
 		os.Exit(1)
 	}
 
@@ -125,6 +152,12 @@ func runExtract() {
 		APIToken: *karakeepToken,
 	}
 	client := karakeep.NewClient(domainCfg)
+
+	// Ensure DB directory exists
+	dbDir := filepath.Dir(*dbPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		log.Fatalf("Failed to create DB directory: %v", err)
+	}
 
 	db, err := sql.Open("sqlite3", *dbPath)
 	if err != nil {
@@ -136,24 +169,55 @@ func runExtract() {
 		log.Fatalf("Schema init failed: %v", err)
 	}
 
-	svc := service.NewExtractor(client, repo)
-	if err := svc.Extract(context.Background()); err != nil {
-		log.Fatalf("Extraction failed: %v", err)
+	// Select Reporter
+	var reporter domain.ProgressReporter
+	if *tuiMode {
+		task := func(r domain.ProgressReporter) error {
+			return svc.Extract(context.Background(), r)
+		}
+
+		// Run TUI
+		if err := tui.Run(context.Background(), "extract", task); err != nil {
+			fmt.Fprintf(os.Stderr, "TUI Error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	} else {
+		reporter = github_com_brianluby_karakeep_extractor_internal_adapter_reporter.NewTextReporter()
+		if err := svc.Extract(context.Background(), reporter); err != nil {
+			log.Fatalf("Extraction failed: %v", err)
+		}
 	}
 }
 
-func runEnrich(limit int, force bool, tokenOverride string) {
-	// Load base config for DB path
-	// We can't use config.Load() easily because it calls flag.Parse() which acts on global args.
-	// We'll just grab DB from Env or Default.
+func runEnrich(limit int, force bool, tokenOverride string, tuiMode bool) {
+	// Load Config
+	loader := config.NewConfigLoader()
+	cfg, err := loader.LoadConfig(nil)
+	// Ignore err, just try to get values
+
+	// DB Path Precedence: Env > Config > Default
 	dbPath := os.Getenv("KARAKEEP_DB")
+	if dbPath == "" && cfg != nil {
+		dbPath = cfg.DBPath
+	}
 	if dbPath == "" {
 		dbPath = "./karakeep.db"
 	}
 	
-	ghToken := os.Getenv("GITHUB_TOKEN")
-	if tokenOverride != "" {
-		ghToken = tokenOverride
+	// GitHub Token Precedence: Flag > Env > Config
+	ghToken := tokenOverride
+	if ghToken == "" {
+		ghToken = os.Getenv("GITHUB_TOKEN")
+	}
+	if ghToken == "" && cfg != nil {
+		ghToken = cfg.GitHubToken
+	}
+
+	// Ensure DB directory exists
+	dbDir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		log.Fatalf("Failed to create DB directory: %v", err)
 	}
 
 	db, err := sql.Open("sqlite3", dbPath)
@@ -170,14 +234,32 @@ func runEnrich(limit int, force bool, tokenOverride string) {
 	ghClient := gh.NewClient(ghToken)
 	enricher := service.NewEnricher(repo, ghClient)
 
-	fmt.Printf("Starting enrichment (Limit: %d, Force: %t)...\n", limit, force)
-	success, failed, err := enricher.EnrichBatch(context.Background(), limit, force, 5) // 5 workers
-	
-	fmt.Printf("Enrichment complete.\nUpdated: %d\nErrors: %d\n", success, failed)
-	
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	// Select Reporter
+	var reporter domain.ProgressReporter
+	if tuiMode {
+		task := func(r domain.ProgressReporter) error {
+			// fmt.Printf("Starting enrichment (Limit: %d, Force: %t)...\n", limit, force) // Handled by Reporter
+			_, _, err := enricher.EnrichBatch(context.Background(), limit, force, 5, r) // 5 workers
+			return err
+		}
+
+		// Run TUI
+		if err := tui.Run(context.Background(), "enrich", task); err != nil {
+			fmt.Fprintf(os.Stderr, "TUI Error: %v\n", err)
+			os.Exit(1)
+		}
+		// Exit successfully if TUI loop finishes normally
+		os.Exit(0)
+	} else {
+		reporter = github_com_brianluby_karakeep_extractor_internal_adapter_reporter.NewTextReporter()
+		success, failed, err := enricher.EnrichBatch(context.Background(), limit, force, 5, reporter) // 5 workers
+		if err != nil {
+			os.Exit(1)
+		}
+		// If using text reporter, we might want to log summary if not already done by Finish()
+		// TextReporter implementation does log "Finished: ...".
+		_ = success
+		_ = failed
 	}
 }
 
@@ -187,6 +269,12 @@ func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders 
 	cfg, err := loader.LoadConfig(nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to load config file: %v\n", err)
+	}
+
+	// Ensure DB directory exists (safe measure)
+	dbDir := filepath.Dir(cfg.DBPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		log.Fatalf("Failed to create DB directory: %v", err)
 	}
 
 	db, err := sql.Open("sqlite3", cfg.DBPath)
@@ -210,7 +298,7 @@ func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders 
 	var sink domain.Sink
 	if sinkTrillium {
 		if cfg.TrilliumURL == "" || cfg.TrilliumToken == "" {
-			fmt.Fprintf(os.Stderr, "Error: Trillium URL and Token required. Run 'karakeep setup'.\n")
+			fmt.Fprintf(os.Stderr, "Error: Trillium URL and Token required. Run 'karakeep-extractor setup'.\n")
 			os.Exit(1)
 		}
 		client := trillium.NewClient(cfg.TrilliumURL, cfg.TrilliumToken)

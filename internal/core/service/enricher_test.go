@@ -50,6 +50,16 @@ func (m *MockClient) GetRepoStats(ctx context.Context, owner, repo string) (*dom
 	return nil, 5000, errors.New("not found")
 }
 
+// MockReporter for testing
+type mockReporter struct{}
+
+func (m *mockReporter) Start(total int, title string)   {}
+func (m *mockReporter) Increment()                      {}
+func (m *mockReporter) SetStatus(status string)         {}
+func (m *mockReporter) Log(message string)              {}
+func (m *mockReporter) Error(err error)                 {}
+func (m *mockReporter) Finish(summary string)           {}
+
 func TestEnricher_EnrichBatch(t *testing.T) {
 	repo1 := &domain.ExtractedRepo{RepoID: "owner/repo1", EnrichmentStatus: domain.StatusPending}
 	repo2 := &domain.ExtractedRepo{RepoID: "owner/repo2", EnrichmentStatus: domain.StatusPending}
@@ -70,7 +80,7 @@ func TestEnricher_EnrichBatch(t *testing.T) {
 
 	enricher := NewEnricher(mockRepo, mockClient)
 
-	success, failed, err := enricher.EnrichBatch(context.Background(), 10, false, 2)
+	success, failed, err := enricher.EnrichBatch(context.Background(), 10, false, 2, &mockReporter{})
 	if err != nil {
 		t.Fatalf("EnrichBatch failed: %v", err)
 	}
@@ -94,7 +104,7 @@ func TestEnricher_RateLimit(t *testing.T) {
 	}
 
 	enricher := NewEnricher(mockRepo, mockClient)
-	_, _, err := enricher.EnrichBatch(context.Background(), 10, false, 1)
+	_, _, err := enricher.EnrichBatch(context.Background(), 10, false, 1, &mockReporter{})
 	if err == nil {
 		t.Error("Expected rate limit error, got nil")
 	}

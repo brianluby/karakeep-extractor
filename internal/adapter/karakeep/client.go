@@ -150,7 +150,7 @@ func handleErrorResponse(resp *http.Response) error {
 
 // FetchBookmarks fetches bookmarks from the Karakeep API.
 func (c *Client) FetchBookmarks(ctx context.Context, page int) ([]domain.RawBookmark, error) {
-	url := fmt.Sprintf("%s/api/bookmarks?page=%d", c.Config.BaseURL, page)
+	url := fmt.Sprintf("%s/bookmarks?page=%d", c.Config.BaseURL, page)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request for page %d: %w", page, err)
@@ -166,10 +166,12 @@ func (c *Client) FetchBookmarks(ctx context.Context, page int) ([]domain.RawBook
 		return nil, handleErrorResponse(resp)
 	}
 
-	var bookmarks []domain.RawBookmark
-	if err := json.NewDecoder(resp.Body).Decode(&bookmarks); err != nil {
+	var response struct {
+		Bookmarks []domain.RawBookmark `json:"bookmarks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("failed to decode bookmarks for page %d: %w", page, err)
 	}
 
-	return bookmarks, nil
+	return response.Bookmarks, nil
 }
