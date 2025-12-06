@@ -61,6 +61,11 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" || msg.String() == "q" {
+			return m, tea.Quit
+		}
+
 	case tea.WindowSizeMsg:
 		// We can propagate this to children if they need to resize
 		// For now, we just acknowledge it. If we used viewport, we'd pass it on.
@@ -122,12 +127,15 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MsgDone:
 		m.State = StateDone
 		m.Summary = msg.Summary
-		return m, tea.Quit 
+		// return m, tea.Quit // Don't quit yet, let user see summary
+		return m, nil
 
 	case MsgFatal:
 		m.State = StateFatal
 		m.FatalErr = msg.Err
-		return m, tea.Quit
+		return m, tea.Quit // Fatal errors can quit or stay? Let's quit for now or wait for key?
+		// Spec says "The system MUST restore the terminal... upon exit or failure".
+		// If we Quit, we restore.
 	
 	default:
 		// Forward specific messages to child models if needed
@@ -151,7 +159,7 @@ func (m RootModel) View() string {
 	}
 	
 	if m.State == StateDone {
-		return fmt.Sprintf("\nDone! %s\n", m.Summary)
+		return fmt.Sprintf("\n%s\n\nDone! %s\nPress Ctrl+C or q to quit.\n", m.LogModel.View(), m.Summary)
 	}
 
 	var s strings.Builder

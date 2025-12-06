@@ -19,7 +19,10 @@ func Run(ctx context.Context, mode string, task func(domain.ProgressReporter) er
 
 	model := NewRootModel(opMode)
 	// Use WithAltScreen to restore terminal on exit
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	// p := tea.NewProgram(model, tea.WithAltScreen())
+	// DISABLING AltScreen temporarily to debug why it closes so fast and to leave logs visible.
+	// If we want persistent "Done" message, we should handle that in Update or print after Run.
+	p := tea.NewProgram(model)
 
 	// Create a reporter bound to this program
 	reporter := NewBubbleTeaReporter(p)
