@@ -153,34 +153,56 @@ func handleErrorResponse(resp *http.Response) error {
 // FetchBookmarks fetches bookmarks from the Karakeep API.
 func (c *Client) FetchBookmarks(ctx context.Context) ([]domain.RawBookmark, error) {
 	baseURL := strings.TrimSuffix(c.Config.BaseURL, "/")
-	url := fmt.Sprintf("%s/bookmarks?archived=false&includeContent=true", baseURL)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	var allBookmarks []domain.RawBookmark
+	var cursor string
+	limit := 100
+
+	for {
+		url := fmt.Sprintf("%s/bookmarks?archived=false&includeContent=true&limit=%d", baseURL, limit)
+		if cursor != "" {
+			url += fmt.Sprintf("&cursor=%s", cursor)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch bookmarks: %w", err)
+		}
+		// Defer inside loop is okay if loop isn't huge, but better to close explicitly
+		// We'll read properly below
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, handleErrorResponse(resp)
+		}
+
+		var response struct {
+			Bookmarks  []domain.RawBookmark `json:"bookmarks"`
+			NextCursor *string              `json:"nextCursor"`
+		}
+
+		if err := json.Unmarshal(bodyBytes, &response); err != nil {
+			return nil, fmt.Errorf("failed to decode bookmarks: %w", err)
+		}
+
+		if len(response.Bookmarks) > 0 {
+			allBookmarks = append(allBookmarks, response.Bookmarks...)
+		}
+
+		if response.NextCursor == nil || *response.NextCursor == "" {
+			break
+		}
+		cursor = *response.NextCursor
 	}
 
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch bookmarks: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, handleErrorResponse(resp)
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var response struct {
-		Bookmarks []domain.RawBookmark `json:"bookmarks"`
-	}
-	
-	if err := json.Unmarshal(bodyBytes, &response); err != nil {
-		return nil, fmt.Errorf("failed to decode bookmarks: %w", err)
-	}
-
-	return response.Bookmarks, nil
+	return allBookmarks, nil
 }
