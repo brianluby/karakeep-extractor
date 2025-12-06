@@ -115,7 +115,8 @@ func TestFetchBookmarks(t *testing.T) {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/repo1", Title: "Repo 1", Description: ""},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/repo1", Title: "Repo 1", Description: "", HTMLContent: ""},
 				},
 				{
 					ID: "2",
@@ -123,7 +124,8 @@ func TestFetchBookmarks(t *testing.T) {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://example.com/article1", Title: "Article 1", Description: ""},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://example.com/article1", Title: "Article 1", Description: "", HTMLContent: ""},
 				},
 				{
 					ID: "3",
@@ -131,7 +133,8 @@ func TestFetchBookmarks(t *testing.T) {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/repo2", Title: "Repo 2", Description: ""},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/repo2", Title: "Repo 2", Description: "", HTMLContent: ""},
 				},
 			},
 		}

@@ -82,17 +82,20 @@ func TestExtractService_Extract(t *testing.T) {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/owner1/repo1", Title: "Repo One"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/owner1/repo1", Title: "Repo One", HTMLContent: ""}},
 					{ID: "2", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://example.com/not-github", Title: "Non-GitHub"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://example.com/not-github", Title: "Non-GitHub", HTMLContent: ""}},
 					{ID: "3", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/owner2/repo2.git", Title: "Repo Two"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/owner2/repo2.git", Title: "Repo Two", HTMLContent: ""}},
 				},
 			},
 			expectedRepos: []domain.ExtractedRepo{
@@ -109,22 +112,26 @@ func TestExtractService_Extract(t *testing.T) {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/ownerA/repoA", Title: "Repo A"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/ownerA/repoA", Title: "Repo A", HTMLContent: ""}},
 					{ID: "11", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/ownerB/repoB", Title: "Repo B"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/ownerB/repoB", Title: "Repo B", HTMLContent: ""}},
 					{ID: "12", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "http://github.com/ownerA/repoA/", Title: "Repo A Dupe"}}, // Duplicate
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "http://github.com/ownerA/repoA/", Title: "Repo A Dupe", HTMLContent: ""}}, // Duplicate
 					{ID: "13", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/ownerC/repoC?ref=master", Title: "Repo C"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/ownerC/repoC?ref=master", Title: "Repo C", HTMLContent: ""}},
 				},
 			},
 			expectedRepos: []domain.ExtractedRepo{
@@ -142,17 +149,20 @@ func TestExtractService_Extract(t *testing.T) {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "https://github.com/good/repo", Title: "Good Repo"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "https://github.com/good/repo", Title: "Good Repo", HTMLContent: ""}},
 					{ID: "2", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "ftp://bad-url.com", Title: "Bad URL"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "ftp://bad-url.com", Title: "Bad URL", HTMLContent: ""}},
 					{ID: "3", Content: struct {
 						URL         string `json:"url"`
 						Title       string `json:"title"`
 						Description string `json:"description"`
-					}{URL: "invalid-url", Title: "Another Bad URL"}},
+						HTMLContent string `json:"htmlContent"`
+					}{URL: "invalid-url", Title: "Another Bad URL", HTMLContent: ""}},
 				},
 			},
 			expectedRepos: []domain.ExtractedRepo{
@@ -238,17 +248,20 @@ func TestExtractService_Extract_FullPagination(t *testing.T) {
 					URL         string `json:"url"`
 					Title       string `json:"title"`
 					Description string `json:"description"`
-				}{URL: "https://github.com/a/b", Title: "Repo A"}},
+					HTMLContent string `json:"htmlContent"`
+				}{URL: "https://github.com/a/b", Title: "Repo A", HTMLContent: ""}},
 				{ID: "2", Content: struct {
 					URL         string `json:"url"`
 					Title       string `json:"title"`
 					Description string `json:"description"`
-				}{URL: "https://github.com/c/d", Title: "Repo C"}},
+					HTMLContent string `json:"htmlContent"`
+				}{URL: "https://github.com/c/d", Title: "Repo C", HTMLContent: ""}},
 				{ID: "3", Content: struct {
 					URL         string `json:"url"`
 					Title       string `json:"title"`
 					Description string `json:"description"`
-				}{URL: "https://github.com/e/f", Title: "Repo E"}},
+					HTMLContent string `json:"htmlContent"`
+				}{URL: "https://github.com/e/f", Title: "Repo E", HTMLContent: ""}},
 			},
 		},
 	}

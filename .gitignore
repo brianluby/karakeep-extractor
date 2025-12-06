@@ -36,3 +36,7 @@
 config.yaml
 *.env
 .env
+
+# Local data
+*.db
+bookmarks.json

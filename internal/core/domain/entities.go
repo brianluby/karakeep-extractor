@@ -16,6 +16,7 @@ type RawBookmark struct {
 		URL         string `json:"url"`
 		Title       string `json:"title"`
 		Description string `json:"description"`
+		HTMLContent string `json:"htmlContent"`
 	} `json:"content"`
 }
 

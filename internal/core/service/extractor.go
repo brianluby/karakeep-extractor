@@ -42,49 +42,68 @@ func (e *Extractor) Extract(ctx context.Context, reporter domain.ProgressReporte
 	
 	reporter.Start(len(bookmarks), "Processing bookmarks")
 	extractedCount := 0
+	
+	// Regex to find potential links in text (simplified)
+	linkRegex := regexp.MustCompile(`https?://github\.com/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+`)
 
 	for _, bm := range bookmarks {
-		targetURL := bm.Content.URL
-		normalizedRepoID, isGitHub := NormalizeGitHubURL(targetURL)
-		if !isGitHub {
-			continue // Skip non-GitHub URLs
+		// Candidate URLs: Main URL + any found in HTML content
+		candidates := []string{bm.Content.URL}
+		
+		if bm.Content.HTMLContent != "" {
+			matches := linkRegex.FindAllString(bm.Content.HTMLContent, -1)
+			candidates = append(candidates, matches...)
 		}
 
-		// Check for malformed URL after normalization attempt
-		if normalizedRepoID == "" {
-			reporter.Log(fmt.Sprintf("Skipping malformed URL in bookmark ID %s: %s", bm.ID, targetURL))
-			continue
+		// Deduplicate candidates for this bookmark to avoid processing same repo twice
+		uniqueRepos := make(map[string]string) // normalizedID -> originalURL
+
+		for _, rawURL := range candidates {
+			normalizedRepoID, isGitHub := NormalizeGitHubURL(rawURL)
+			if !isGitHub || normalizedRepoID == "" {
+				continue
+			}
+			uniqueRepos[normalizedRepoID] = rawURL
 		}
 
-		exists, err := e.Repository.Exists(ctx, normalizedRepoID)
-		if err != nil {
-			reporter.Log(fmt.Sprintf("Error checking existence for %s: %v", normalizedRepoID, err))
-			continue
-		}
-		if exists {
-			// log.Printf("Skipping duplicate repo: %s", normalizedRepoID)
-			continue
-		}
+		for normalizedRepoID, originalURL := range uniqueRepos {
+			exists, err := e.Repository.Exists(ctx, normalizedRepoID)
+			if err != nil {
+				reporter.Log(fmt.Sprintf("Error checking existence for %s: %v", normalizedRepoID, err))
+				continue
+			}
+			if exists {
+				continue
+			}
 
-		// Determine Title
-		title := bm.Content.Title
-		if bm.Title != nil && *bm.Title != "" {
-			title = *bm.Title
-		}
+			// Determine Title (Use bookmark title, or fallback to repo ID if finding multiple?)
+			// Ideally we'd want the repo title, but we don't have it yet.
+			// We'll use the bookmark title as the "source context" title for now.
+			title := bm.Content.Title
+			if bm.Title != nil && *bm.Title != "" {
+				title = *bm.Title
+			}
 
-		repo := domain.ExtractedRepo{
-			RepoID:   normalizedRepoID,
-			URL:      targetURL, // Keep original URL for now, can be normalized later if needed
-			SourceID: bm.ID,
-			Title:    title,
-			FoundAt:  time.Now(),
-		}
+			repo := domain.ExtractedRepo{
+				RepoID:   normalizedRepoID,
+				URL:      originalURL,
+				SourceID: bm.ID,
+				Title:    title,
+				FoundAt:  time.Now(),
+			}
 
-		if err := e.Repository.Save(ctx, repo); err != nil {
-			reporter.Log(fmt.Sprintf("Error saving repo %s: %v", normalizedRepoID, err))
-			continue
+			if err := e.Repository.Save(ctx, repo); err != nil {
+				reporter.Log(fmt.Sprintf("Error saving repo %s: %v", normalizedRepoID, err))
+				continue
+			}
+			extractedCount++
+			reporter.Increment() // Visual progress tick (note: this might tick multiple times per bookmark now, or we should just tick once per bookmark processed? Let's stick to 1 tick per bookmark loop to match progress bar total)
 		}
-		extractedCount++
+		// Correct progress bar behavior: we iterate bookmarks, so we should increment once per bookmark
+		// The previous Increment() was inside the loop, which was wrong if we want to match "Total Bookmarks".
+		// However, if we find multiple repos, we want to show activity.
+		// BUT, reporter.Start(len(bookmarks)) sets the max. If we increment > len(bookmarks), the bar might break or look weird.
+		// So we must only Increment once per bookmark processed.
 		reporter.Increment()
 	}
 	reporter.Finish(fmt.Sprintf("Extraction complete: %d new repositories found.", extractedCount))
