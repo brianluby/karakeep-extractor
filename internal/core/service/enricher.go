@@ -78,12 +78,16 @@ func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, worke
 	}()
 
 	successCount := 0
+	notFoundCount := 0
 	errCount := 0
 
 	for res := range resCh {
-		if res.Status == domain.StatusSuccess {
+		switch res.Status {
+		case domain.StatusSuccess:
 			successCount++
-		} else {
+		case domain.StatusNotFound:
+			notFoundCount++
+		default:
 			errCount++
 			// If Fail Fast is triggered (Rate Limit), we should probably return early.
 			// Ideally, processRepo returns a specific error type we can check.
@@ -96,7 +100,7 @@ func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, worke
 		reporter.Increment()
 	}
 	
-	reporter.Finish(fmt.Sprintf("Enriched: %d, Failed: %d", successCount, errCount))
+	reporter.Finish(fmt.Sprintf("Enriched: %d, Not Found: %d, Failed: %d", successCount, notFoundCount, errCount))
 
 	return successCount, errCount, nil
 }

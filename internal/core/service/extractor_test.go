@@ -224,6 +224,10 @@ func TestNormalizeGitHubURL(t *testing.T) {
 		{"invalid-url", "", false},
 		{"https://github.com", "", false}, // Just domain, no owner/repo
 		{"https://github.com/owner", "", false}, // Only owner, no repo
+		{"https://github.com/marketplace/actions", "", false},
+		{"https://github.com/apps/my-app", "", false},
+		{"https://github.com/sponsors/someone", "", false},
+		{"https://github.com/login", "", false},
 	}
 
 	for _, tc := range testCases {

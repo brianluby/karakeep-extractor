@@ -130,8 +130,36 @@ func NormalizeGitHubURL(rawURL string) (string, bool) {
 		return "", false // Path doesn't contain owner/repo
 	}
 
-	owner := matches[1]
+	owner := strings.ToLower(matches[1])
 	repo := strings.TrimSuffix(matches[2], ".git") // Remove .git suffix if present
 
-	return fmt.Sprintf("%s/%s", owner, repo), true
+	// Blacklist of reserved paths that look like owner/repo but aren't
+	reservedPaths := map[string]bool{
+		"marketplace":      true,
+		"apps":             true,
+		"sponsors":         true,
+		"advisories":       true,
+		"topics":           true,
+		"search":           true,
+		"login":            true,
+		"join":             true,
+		"features":         true,
+		"pricing":          true,
+		"enterprise":       true,
+		"customer-stories": true,
+		"security":         true,
+		"collections":      true,
+		"new":              true,
+		"settings":         true,
+		"site":             true,
+		"about":            true,
+		"contact":          true,
+		"organizations":    true,
+	}
+
+	if reservedPaths[owner] {
+		return "", false
+	}
+
+	return fmt.Sprintf("%s/%s", matches[1], repo), true // Return original casing for owner
 }
