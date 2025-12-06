@@ -45,7 +45,7 @@ func (m LogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m LogModel) View() string {
 	style := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")),
+		BorderForeground(lipgloss.Color("240")).
 		Padding(0, 1).
 		Width(60)
 

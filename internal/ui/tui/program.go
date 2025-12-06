@@ -17,6 +17,7 @@ func Run(ctx context.Context, mode string, task func(domain.ProgressReporter) er
 		opMode = ModeExtract
 	}
 
+	model := NewRootModel(opMode)
 	// Use WithAltScreen to restore terminal on exit
 	p := tea.NewProgram(model, tea.WithAltScreen())
 

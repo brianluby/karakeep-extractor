@@ -5,7 +5,24 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/brianluby/karakeep-extractor/internal/core/domain"
+)
+
+type OperationMode int
+
+const (
+	ModeIdle OperationMode = iota
+	ModeEnrich
+	ModeExtract
+)
+
+type AppState int
+
+const (
+	StateIdle AppState = iota
+	StateRunning
+	StateDone
+	StateError
+	StateFatal
 )
 
 // RootModel is the top-level Bubble Tea model.

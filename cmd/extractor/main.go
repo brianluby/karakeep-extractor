@@ -13,12 +13,14 @@ import (
 	gh "github.com/brianluby/karakeep-extractor/internal/adapter/github"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/http"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/karakeep"
+	rep "github.com/brianluby/karakeep-extractor/internal/adapter/reporter"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/sqlite"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/trillium"
 	"github.com/brianluby/karakeep-extractor/internal/config"
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 	"github.com/brianluby/karakeep-extractor/internal/core/service"
 	"github.com/brianluby/karakeep-extractor/internal/ui"
+	"github.com/brianluby/karakeep-extractor/internal/ui/tui"
 )
 
 type arrayFlags []string
@@ -44,6 +46,7 @@ func main() {
 	enrichLimit := enrichCmd.Int("limit", 50, "Maximum number of repositories to process")
 	enrichForce := enrichCmd.Bool("force", false, "Force re-enrichment of processed repositories")
 	enrichToken := enrichCmd.String("token", "", "GitHub Personal Access Token (overrides env var)")
+	enrichDB := enrichCmd.String("db", "", "Path to SQLite database")
 	enrichTui := enrichCmd.Bool("tui", false, "Enable TUI mode")
 
 	rankCmd := flag.NewFlagSet("rank", flag.ExitOnError)
@@ -55,6 +58,7 @@ func main() {
 	rankCmd.Var(&rankSinkHeaders, "sink-header", "Header to send with sink request (Key: Value)")
 	rankSinkTrillium := rankCmd.Bool("sink-trillium", false, "Send ranked results to Trillium Notes")
 	rankTag := rankCmd.String("tag", "", "Filter repositories by tag (title/description)")
+	rankDB := rankCmd.String("db", "", "Path to SQLite database")
 
 	// Global flags logic is complex with subcommands if mixed. 
 	// We'll assume extract is default if no subcommand, or explicit 'extract' command.
@@ -68,10 +72,10 @@ func main() {
 	case "enrich":
 		// Parse flags for enrich
 		enrichCmd.Parse(os.Args[2:])
-		runEnrich(*enrichLimit, *enrichForce, *enrichToken, *enrichTui)
+		runEnrich(*enrichLimit, *enrichForce, *enrichToken, *enrichDB, *enrichTui)
 	case "rank":
 		rankCmd.Parse(os.Args[2:])
-		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders, *rankSinkTrillium, *rankTag)
+		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders, *rankSinkTrillium, *rankTag, *rankDB)
 	case "setup":
 		runSetup()
 	}
@@ -89,6 +93,17 @@ func printUsage() {
 	fmt.Println("  rank       Display, filter, and export a ranked list of repositories.")
 	fmt.Println("")
 	fmt.Println("Run 'karakeep-extractor <command> --help' for command-specific flags.")
+}
+
+// expandPath expands the tilde (~) in the path to the user's home directory.
+func expandPath(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
 }
 
 func runExtract() {
@@ -140,6 +155,8 @@ func runExtract() {
 	if *dbPath == "" {
 		*dbPath = "./karakeep.db" // Final default
 	}
+	
+	*dbPath = expandPath(*dbPath)
 
 	if *karakeepURL == "" || *karakeepToken == "" {
 		fmt.Println("Error: Karakeep URL and Token are required.")
@@ -169,6 +186,8 @@ func runExtract() {
 		log.Fatalf("Schema init failed: %v", err)
 	}
 
+	svc := service.NewExtractor(client, repo)
+
 	// Select Reporter
 	var reporter domain.ProgressReporter
 	if *tuiMode {
@@ -183,27 +202,32 @@ func runExtract() {
 		}
 		os.Exit(0)
 	} else {
-		reporter = github_com_brianluby_karakeep_extractor_internal_adapter_reporter.NewTextReporter()
+		reporter = rep.NewTextReporter()
 		if err := svc.Extract(context.Background(), reporter); err != nil {
 			log.Fatalf("Extraction failed: %v", err)
 		}
 	}
 }
 
-func runEnrich(limit int, force bool, tokenOverride string, tuiMode bool) {
+func runEnrich(limit int, force bool, tokenOverride string, dbFlag string, tuiMode bool) {
 	// Load Config
 	loader := config.NewConfigLoader()
 	cfg, err := loader.LoadConfig(nil)
 	// Ignore err, just try to get values
 
-	// DB Path Precedence: Env > Config > Default
-	dbPath := os.Getenv("KARAKEEP_DB")
+	// DB Path Precedence: Flag > Env > Config > Default
+	dbPath := dbFlag
+	if dbPath == "" {
+		dbPath = os.Getenv("KARAKEEP_DB")
+	}
 	if dbPath == "" && cfg != nil {
 		dbPath = cfg.DBPath
 	}
 	if dbPath == "" {
 		dbPath = "./karakeep.db"
 	}
+	
+	dbPath = expandPath(dbPath)
 	
 	// GitHub Token Precedence: Flag > Env > Config
 	ghToken := tokenOverride
@@ -251,7 +275,7 @@ func runEnrich(limit int, force bool, tokenOverride string, tuiMode bool) {
 		// Exit successfully if TUI loop finishes normally
 		os.Exit(0)
 	} else {
-		reporter = github_com_brianluby_karakeep_extractor_internal_adapter_reporter.NewTextReporter()
+		reporter = rep.NewTextReporter()
 		success, failed, err := enricher.EnrichBatch(context.Background(), limit, force, 5, reporter) // 5 workers
 		if err != nil {
 			os.Exit(1)
@@ -263,21 +287,35 @@ func runEnrich(limit int, force bool, tokenOverride string, tuiMode bool) {
 	}
 }
 
-func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders []string, sinkTrillium bool, tag string) {
+func runRank(limit int, sort string, format string, sinkURL string, sinkHeaders []string, sinkTrillium bool, tag string, dbFlag string) {
 	// Load Config
 	loader := config.NewConfigLoader()
 	cfg, err := loader.LoadConfig(nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to load config file: %v\n", err)
 	}
+	
+	// DB Path Precedence: Flag > Env > Config > Default
+	dbPath := dbFlag
+	if dbPath == "" {
+		dbPath = os.Getenv("KARAKEEP_DB")
+	}
+	if dbPath == "" && cfg != nil {
+		dbPath = cfg.DBPath
+	}
+	if dbPath == "" {
+		dbPath = "./karakeep.db"
+	}
+	
+	dbPath = expandPath(dbPath)
 
 	// Ensure DB directory exists (safe measure)
-	dbDir := filepath.Dir(cfg.DBPath)
+	dbDir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
 		log.Fatalf("Failed to create DB directory: %v", err)
 	}
 
-	db, err := sql.Open("sqlite3", cfg.DBPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatalf("Failed to open DB: %v", err)
 	}
