@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
@@ -150,7 +151,8 @@ func handleErrorResponse(resp *http.Response) error {
 
 // FetchBookmarks fetches bookmarks from the Karakeep API.
 func (c *Client) FetchBookmarks(ctx context.Context, page int) ([]domain.RawBookmark, error) {
-	url := fmt.Sprintf("%s/bookmarks?page=%d", c.Config.BaseURL, page)
+	baseURL := strings.TrimSuffix(c.Config.BaseURL, "/")
+	url := fmt.Sprintf("%s/bookmarks?page=%d", baseURL, page)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request for page %d: %w", page, err)
