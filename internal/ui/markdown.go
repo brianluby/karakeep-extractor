@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"html"
 
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 )
@@ -38,8 +39,9 @@ func (m *MarkdownFormatter) FormatTable(repos []domain.ExtractedRepo) string {
 		
 		desc := ""
 		if repo.Description != nil {
+			desc = html.EscapeString(*repo.Description)
 			// Escape pipes in description to avoid breaking table
-			desc = strings.ReplaceAll(*repo.Description, "|", "\\|")
+			desc = strings.ReplaceAll(desc, "|", "\\|")
 			// Truncate if too long? Or keep full. Trillium handles scroll.
 		}
 
