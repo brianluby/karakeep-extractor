@@ -39,3 +39,15 @@ func (r *TextReporter) Error(err error) {
 func (r *TextReporter) Finish(summary string) {
 	log.Printf("Finished: %s", summary)
 }
+
+func (r *TextReporter) RecordSuccess() {
+	// No-op or '.' for CLI
+}
+
+func (r *TextReporter) RecordFailure() {
+	// Log error usually handled by Error() call before this?
+}
+
+func (r *TextReporter) RecordSkipped() {
+	// No-op
+}

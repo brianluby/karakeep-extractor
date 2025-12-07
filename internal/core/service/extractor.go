@@ -58,6 +58,7 @@ func (e *Extractor) Extract(ctx context.Context, reporter domain.ProgressReporte
 		// Deduplicate candidates for this bookmark to avoid processing same repo twice
 		uniqueRepos := make(map[string]string) // normalizedID -> originalURL
 
+		foundNew := false
 		for _, rawURL := range candidates {
 			normalizedRepoID, isGitHub := NormalizeGitHubURL(rawURL)
 			if !isGitHub || normalizedRepoID == "" {
@@ -77,8 +78,6 @@ func (e *Extractor) Extract(ctx context.Context, reporter domain.ProgressReporte
 			}
 
 			// Determine Title (Use bookmark title, or fallback to repo ID if finding multiple?)
-			// Ideally we'd want the repo title, but we don't have it yet.
-			// We'll use the bookmark title as the "source context" title for now.
 			title := bm.Content.Title
 			if bm.Title != nil && *bm.Title != "" {
 				title = *bm.Title
@@ -94,16 +93,18 @@ func (e *Extractor) Extract(ctx context.Context, reporter domain.ProgressReporte
 
 			if err := e.Repository.Save(ctx, repo); err != nil {
 				reporter.Log(fmt.Sprintf("Error saving repo %s: %v", normalizedRepoID, err))
+				reporter.RecordFailure()
 				continue
 			}
 			extractedCount++
-			reporter.Increment() // Visual progress tick (note: this might tick multiple times per bookmark now, or we should just tick once per bookmark processed? Let's stick to 1 tick per bookmark loop to match progress bar total)
+			foundNew = true
 		}
-		// Correct progress bar behavior: we iterate bookmarks, so we should increment once per bookmark
-		// The previous Increment() was inside the loop, which was wrong if we want to match "Total Bookmarks".
-		// However, if we find multiple repos, we want to show activity.
-		// BUT, reporter.Start(len(bookmarks)) sets the max. If we increment > len(bookmarks), the bar might break or look weird.
-		// So we must only Increment once per bookmark processed.
+		
+		if foundNew {
+			reporter.RecordSuccess() // Treat "Processed & Found Repo" as Success
+		} else {
+			reporter.RecordSkipped() // Treat "Processed & No New Repo" as Skipped
+		}
 		reporter.Increment()
 	}
 	reporter.Finish(fmt.Sprintf("Extraction complete: %d new repositories found.", extractedCount))

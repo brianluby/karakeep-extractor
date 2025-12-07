@@ -63,6 +63,22 @@ func (l *ConfigLoader) LoadConfig(flagConfig *Config) (*Config, error) {
 			if fileConfig.DBPath != "" {
 				finalConfig.DBPath = fileConfig.DBPath
 			}
+			// Merge LLM config
+			if fileConfig.LLM.Provider != "" {
+				finalConfig.LLM.Provider = fileConfig.LLM.Provider
+			}
+			if fileConfig.LLM.BaseURL != "" {
+				finalConfig.LLM.BaseURL = fileConfig.LLM.BaseURL
+			}
+			if fileConfig.LLM.APIKey != "" {
+				finalConfig.LLM.APIKey = fileConfig.LLM.APIKey
+			}
+			if fileConfig.LLM.Model != "" {
+				finalConfig.LLM.Model = fileConfig.LLM.Model
+			}
+			if fileConfig.LLM.MaxTokens != 0 {
+				finalConfig.LLM.MaxTokens = fileConfig.LLM.MaxTokens
+			}
 		}
 	}
 
@@ -84,6 +100,19 @@ func (l *ConfigLoader) LoadConfig(flagConfig *Config) (*Config, error) {
 	}
 	if val := os.Getenv("KARAKEEP_DB"); val != "" {
 		finalConfig.DBPath = val
+	}
+	// LLM Env Vars
+	if val := os.Getenv("LLM_PROVIDER"); val != "" {
+		finalConfig.LLM.Provider = val
+	}
+	if val := os.Getenv("LLM_BASE_URL"); val != "" {
+		finalConfig.LLM.BaseURL = val
+	}
+	if val := os.Getenv("LLM_API_KEY"); val != "" {
+		finalConfig.LLM.APIKey = val
+	}
+	if val := os.Getenv("LLM_MODEL"); val != "" {
+		finalConfig.LLM.Model = val
 	}
 
 	// 4. Override with Flags (if provided)

@@ -59,6 +59,9 @@ func (m *mockReporter) SetStatus(status string)         {}
 func (m *mockReporter) Log(message string)              {}
 func (m *mockReporter) Error(err error)                 {}
 func (m *mockReporter) Finish(summary string)           {}
+func (m *mockReporter) RecordSuccess()                  {}
+func (m *mockReporter) RecordFailure()                  {}
+func (m *mockReporter) RecordSkipped()                  {}
 
 func TestEnricher_EnrichBatch(t *testing.T) {
 	repo1 := &domain.ExtractedRepo{RepoID: "owner/repo1", EnrichmentStatus: domain.StatusPending}

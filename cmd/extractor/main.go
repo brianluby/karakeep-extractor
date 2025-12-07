@@ -13,12 +13,14 @@ import (
 	gh "github.com/brianluby/karakeep-extractor/internal/adapter/github"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/http"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/karakeep"
+	"github.com/brianluby/karakeep-extractor/internal/adapter/llm"
 	rep "github.com/brianluby/karakeep-extractor/internal/adapter/reporter"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/sqlite"
 	"github.com/brianluby/karakeep-extractor/internal/adapter/trillium"
 	"github.com/brianluby/karakeep-extractor/internal/config"
 	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 	"github.com/brianluby/karakeep-extractor/internal/core/service"
+	"github.com/brianluby/karakeep-extractor/internal/core/service/analysis"
 	"github.com/brianluby/karakeep-extractor/internal/ui"
 	"github.com/brianluby/karakeep-extractor/internal/ui/tui"
 )
@@ -60,6 +62,14 @@ func main() {
 	rankTag := rankCmd.String("tag", "", "Filter repositories by tag (title/description)")
 	rankDB := rankCmd.String("db", "", "Path to SQLite database")
 
+	analyzeCmd := flag.NewFlagSet("analyze", flag.ExitOnError)
+	analyzeLang := analyzeCmd.String("lang", "", "Filter by language")
+	analyzeLimit := analyzeCmd.Int("limit", 50, "Limit number of repositories")
+	analyzeTag := analyzeCmd.String("tag", "", "Filter by tag")
+	analyzeDB := analyzeCmd.String("db", "", "Path to SQLite database")
+	analyzeMinStars := analyzeCmd.Int("min-stars", 0, "Minimum number of stars")
+	analyzeMaxStars := analyzeCmd.Int("max-stars", 0, "Maximum number of stars (0 for no limit)")
+
 	// Global flags logic is complex with subcommands if mixed. 
 	// We'll assume extract is default if no subcommand, or explicit 'extract' command.
 	// For now, let's support "extract" and "enrich" explicitly.
@@ -78,6 +88,20 @@ func main() {
 		runRank(*rankLimit, *rankSort, *rankFormat, *rankSinkURL, rankSinkHeaders, *rankSinkTrillium, *rankTag, *rankDB)
 	case "setup":
 		runSetup()
+	case "config":
+		if len(os.Args) < 3 || os.Args[2] != "llm" {
+			fmt.Println("Usage: karakeep config llm")
+			os.Exit(1)
+		}
+		runConfigLLM()
+	case "analyze":
+		analyzeCmd.Parse(os.Args[2:])
+		if analyzeCmd.NArg() < 1 {
+			fmt.Println("Usage: karakeep analyze [flags] \"query\"")
+			os.Exit(1)
+		}
+		query := analyzeCmd.Arg(0)
+		runAnalyze(*analyzeLang, *analyzeLimit, *analyzeTag, *analyzeDB, *analyzeMinStars, *analyzeMaxStars, query)
 	}
 }
 
@@ -88,9 +112,11 @@ func printUsage() {
 	fmt.Println("")
 	fmt.Println("Commands:")
 	fmt.Println("  setup      Run the interactive configuration wizard to set API tokens and URLs.")
+	fmt.Println("  config     Manage configuration (e.g., 'config llm').")
 	fmt.Println("  extract    Fetch bookmarks from Karakeep and save GitHub links to the local database.")
 	fmt.Println("  enrich     Fetch metadata (stars, forks, etc.) from GitHub for extracted repositories.")
 	fmt.Println("  rank       Display, filter, and export a ranked list of repositories.")
+	fmt.Println("  analyze    Analyze repositories using an LLM.")
 	fmt.Println("")
 	fmt.Println("Run 'karakeep-extractor <command> --help' for command-specific flags.")
 }
@@ -104,6 +130,116 @@ func expandPath(path string) string {
 		}
 	}
 	return path
+}
+
+func runConfigLLM() {
+	prompt := ui.NewPrompt(os.Stdin, os.Stdout)
+	loader := config.NewConfigLoader()
+	currentCfg, _ := loader.LoadConfig(nil)
+
+	fmt.Println("Karakeep LLM Configuration")
+	fmt.Println("--------------------------")
+
+	// Defaults
+	defaultProvider := "openai"
+	if currentCfg.LLM.Provider != "" {
+		defaultProvider = currentCfg.LLM.Provider
+	}
+	defaultBaseURL := "https://api.openai.com/v1"
+	if currentCfg.LLM.BaseURL != "" {
+		defaultBaseURL = currentCfg.LLM.BaseURL
+	}
+	defaultModel := "gpt-4o"
+	if currentCfg.LLM.Model != "" {
+		defaultModel = currentCfg.LLM.Model
+	}
+
+	// Prompts
+	provider, err := prompt.Ask("Provider (openai, anthropic, local)", defaultProvider)
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+
+	baseURL, err := prompt.Ask("Base URL", defaultBaseURL)
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+
+	apiKey, err := prompt.AskSecret("API Key")
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+	if apiKey == "" {
+		apiKey = currentCfg.LLM.APIKey
+	}
+
+	model, err := prompt.Ask("Model Name", defaultModel)
+	if err != nil {
+		log.Fatalf("Error reading input: %v", err)
+	}
+
+	// Update Config
+	currentCfg.LLM.Provider = provider
+	currentCfg.LLM.BaseURL = baseURL
+	currentCfg.LLM.APIKey = apiKey
+	currentCfg.LLM.Model = model
+
+	// Save
+	if err := loader.SaveConfig(currentCfg); err != nil {
+		log.Fatalf("Failed to save config: %v", err)
+	}
+	
+	path, _ := config.GetConfigPath()
+	fmt.Printf("\nLLM configuration saved to %s\n", path)
+}
+
+func runAnalyze(lang string, limit int, tag string, dbFlag string, minStars int, maxStars int, query string) {
+	// 1. Config
+	loader := config.NewConfigLoader()
+	cfg, err := loader.LoadConfig(nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
+	}
+
+	// Basic Validation
+	if cfg.LLM.BaseURL == "" {
+		fmt.Println("Error: LLM not configured. Run 'karakeep config llm'.")
+		os.Exit(1)
+	}
+
+	// 2. DB
+	dbPath := dbFlag
+	if dbPath == "" {
+		dbPath = os.Getenv("KARAKEEP_DB")
+	}
+	if dbPath == "" && cfg != nil {
+		dbPath = cfg.DBPath
+	}
+	if dbPath == "" {
+		dbPath = "./karakeep.db"
+	}
+	dbPath = expandPath(dbPath)
+
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open DB: %v", err)
+	}
+	defer db.Close()
+	repo := sqlite.NewSQLiteRepository(db)
+	
+	// 3. Service
+	llmClient := llm.NewClient(cfg.LLM)
+	svc := analysis.NewService(repo, llmClient)
+
+	fmt.Println("Analyzing repositories...")
+	answer, err := svc.Analyze(context.Background(), query, limit, lang, tag, minStars, maxStars)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error during analysis: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("\n--- Analysis Result ---")
+	fmt.Println(answer)
 }
 
 func runExtract() {

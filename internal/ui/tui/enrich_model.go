@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/progress"
@@ -13,6 +14,7 @@ type EnrichModel struct {
 	total    int
 	current  int
 	status   string
+	stats    ProgressStats
 }
 
 func NewEnrichModel() EnrichModel {
@@ -21,6 +23,7 @@ func NewEnrichModel() EnrichModel {
 		total:    0,
 		current:  0,
 		status:   "Waiting...",
+		stats:    ProgressStats{},
 	}
 }
 
@@ -36,6 +39,7 @@ func (m EnrichModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.total = msg.Total
 		m.current = 0
 		m.status = "Starting..."
+		m.stats = ProgressStats{} // Reset stats
 	
 	case MsgProgress:
 		m.current += msg.Increment
@@ -46,6 +50,15 @@ func (m EnrichModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	
 	case MsgStatus:
 		m.status = msg.Status
+
+	case MsgSuccess:
+		m.stats.SuccessCount++
+	
+	case MsgFailure:
+		m.stats.FailureCount++
+	
+	case MsgSkipped:
+		m.stats.SkippedCount++
 
 	case progress.FrameMsg:
 		newModel, newCmd := m.progress.Update(msg)
@@ -58,8 +71,13 @@ func (m EnrichModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m EnrichModel) View() string {
 	pad := strings.Repeat(" ", padding)
+	
+	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	statsStr := fmt.Sprintf("Success: %d | Failed: %d | Skipped: %d", m.stats.SuccessCount, m.stats.FailureCount, m.stats.SkippedCount)
+
 	return "\n" +
-		pad + m.progress.View() + "\n\n" +
+		pad + m.progress.View() + "\n" +
+		pad + statsStyle.Render(statsStr) + "\n\n" +
 		pad + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(m.status) + "\n"
 }
 

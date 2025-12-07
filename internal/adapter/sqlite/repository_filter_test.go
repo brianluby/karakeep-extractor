@@ -23,51 +23,50 @@ func TestSQLiteRepository_GetRankedRepos_Filter(t *testing.T) {
 	}
 
 	// Seed data
-	update1 := domain.RepoEnrichmentUpdate{
-		RepoID: "owner/python-tool",
-		Stats: &domain.RepoStats{
-			Stars: 100, Description: "A tool for Python",
-		},
-		EnrichmentStatus: domain.StatusSuccess,
+	repo1 := domain.ExtractedRepo{
+		RepoID: "owner/python-tool", 
+		URL: "url1", 
+		Title: "Python Tool", 
+		FoundAt: time.Now(),
+		Tags: []string{"python", "data"},
 	}
-	repo.Save(ctx, domain.ExtractedRepo{RepoID: update1.RepoID, URL: "url1", Title: "Python Tool", FoundAt: time.Now()})
-	repo.UpdateRepoEnrichment(ctx, update1)
-
-	update2 := domain.RepoEnrichmentUpdate{
-		RepoID: "owner/go-cli",
-		Stats: &domain.RepoStats{
-			Stars: 200, Description: "A CLI in Go",
-		},
+	repo.Save(ctx, repo1)
+	repo.UpdateRepoEnrichment(ctx, domain.RepoEnrichmentUpdate{
+		RepoID: repo1.RepoID,
+		Stats: &domain.RepoStats{Stars: 100},
 		EnrichmentStatus: domain.StatusSuccess,
-	}
-	repo.Save(ctx, domain.ExtractedRepo{RepoID: update2.RepoID, URL: "url2", Title: "Go CLI", FoundAt: time.Now()})
-	repo.UpdateRepoEnrichment(ctx, update2)
+	})
 
-	// Test Filter by Title ("Python")
-	repos, err := repo.GetRankedRepos(ctx, 10, domain.SortByStars, "Python")
+	repo2 := domain.ExtractedRepo{
+		RepoID: "owner/go-cli", 
+		URL: "url2", 
+		Title: "Go CLI", 
+		FoundAt: time.Now(),
+		Tags: []string{"golang", "cli"},
+	}
+	repo.Save(ctx, repo2)
+	repo.UpdateRepoEnrichment(ctx, domain.RepoEnrichmentUpdate{
+		RepoID: repo2.RepoID,
+		Stats: &domain.RepoStats{Stars: 200},
+		EnrichmentStatus: domain.StatusSuccess,
+	})
+
+	// Test Filter by Tag ("python")
+	repos, err := repo.GetRankedRepos(ctx, 10, domain.SortByStars, "python")
 	if err != nil {
-		t.Fatalf("Filter(Python) failed: %v", err)
+		t.Fatalf("Filter(python) failed: %v", err)
 	}
 	if len(repos) != 1 || repos[0].RepoID != "owner/python-tool" {
 		t.Errorf("Expected 1 python repo, got %d", len(repos))
 	}
 
-	// Test Filter by Description ("CLI")
-	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByStars, "CLI")
+	// Test Filter by Tag ("cli")
+	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByStars, "cli")
 	if err != nil {
-		t.Fatalf("Filter(CLI) failed: %v", err)
+		t.Fatalf("Filter(cli) failed: %v", err)
 	}
 	if len(repos) != 1 || repos[0].RepoID != "owner/go-cli" {
 		t.Errorf("Expected 1 go repo, got %d", len(repos))
-	}
-
-	// Test Case Insensitivity ("go")
-	repos, err = repo.GetRankedRepos(ctx, 10, domain.SortByStars, "go")
-	if err != nil {
-		t.Fatalf("Filter(go) failed: %v", err)
-	}
-	if len(repos) != 1 {
-		t.Errorf("Expected 1 go repo (case insensitive), got %d", len(repos))
 	}
 
 	// Test No Match

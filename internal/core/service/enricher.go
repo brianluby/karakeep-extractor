@@ -85,10 +85,13 @@ func (e *Enricher) EnrichBatch(ctx context.Context, limit int, force bool, worke
 		switch res.Status {
 		case domain.StatusSuccess:
 			successCount++
+			reporter.RecordSuccess()
 		case domain.StatusNotFound:
 			notFoundCount++
+			reporter.RecordFailure()
 		default:
 			errCount++
+			reporter.RecordFailure()
 			// If Fail Fast is triggered (Rate Limit), we should probably return early.
 			// Ideally, processRepo returns a specific error type we can check.
 			if res.Status == domain.StatusAPIError && res.Err != nil && errors.Is(res.Err, domain.ErrRateLimitExceeded) {

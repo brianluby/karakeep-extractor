@@ -17,6 +17,10 @@ Auto-generated from all feature plans. Last updated: 2025-12-04
 - SQLite (Read-only query modification). (007-filter-by-tag)
 - Markdown (for docs), Go 1.25.5 (for CLI help text updates). + None. (008-documentation-sprint)
 - N/A (Purely UI feature) (009-optional-tui-status)
+- Go 1.25.5 + `net/http` (Standard Lib), `encoding/json` (Standard Lib). No external SDKs. (010-llm-repo-analysis)
+- SQLite (for repository data), `config.yaml` (for LLM credentials). (010-llm-repo-analysis)
+- Go 1.25.5 + `github.com/charmbracelet/bubbletea` (Existing TUI framework). (011-real-time-tui-stats)
+- N/A (Transient UI state). (011-real-time-tui-stats)
 
 - Go 1.25.5 + `net/http` (Stdlib), `github.com/mattn/go-sqlite3` (SQLite Driver) (001-karakeep-extract)
 
@@ -36,9 +40,39 @@ tests/
 Go 1.25.5: Follow standard conventions
 
 ## Recent Changes
-- 009-optional-tui-status: Added Go 1.25.5
-- 008-documentation-sprint: Added Markdown (for docs), Go 1.25.5 (for CLI help text updates). + None.
+- 013-advanced-db-querying: Added Go 1.25.5 + `github.com/mattn/go-sqlite3` (Existing).
+- 013-advanced-db-querying: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+- 012-karakeep-ai-tags: Added Go 1.25.5 + `github.com/mattn/go-sqlite3` (Existing).
 
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
+
+<!-- BACKLOG.MD MCP GUIDELINES START -->
+
+<CRITICAL_INSTRUCTION>
+
+## BACKLOG WORKFLOW INSTRUCTIONS
+
+This project uses Backlog.md MCP for all task and project management activities.
+
+**CRITICAL GUIDANCE**
+
+- If your client supports MCP resources, read `backlog://workflow/overview` to understand when and how to use Backlog for this project.
+- If your client only supports tools or the above request fails, call `backlog.get_workflow_overview()` tool to load the tool-oriented overview (it lists the matching guide tools).
+
+- **First time working here?** Read the overview resource IMMEDIATELY to learn the workflow
+- **Already familiar?** You should have the overview cached ("## Backlog.md Overview (MCP)")
+- **When to read it**: BEFORE creating tasks, or when you're unsure whether to track work
+
+These guides cover:
+- Decision framework for when to create tasks
+- Search-first workflow to avoid duplicates
+- Links to detailed guides for task creation, execution, and completion
+- MCP tools reference
+
+You MUST read the overview resource to understand the complete workflow. The information is NOT summarized here.
+
+</CRITICAL_INSTRUCTION>
+
+<!-- BACKLOG.MD MCP GUIDELINES END -->

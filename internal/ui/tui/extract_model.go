@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,6 +13,7 @@ type ExtractModel struct {
 	spinner spinner.Model
 	count   int
 	status  string
+	stats   ProgressStats
 }
 
 func NewExtractModel() ExtractModel {
@@ -22,6 +24,7 @@ func NewExtractModel() ExtractModel {
 		spinner: s,
 		count:   0,
 		status:  "Initializing...",
+		stats:   ProgressStats{},
 	}
 }
 
@@ -36,12 +39,22 @@ func (m ExtractModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MsgStart:
 		m.count = 0
 		m.status = "Starting..."
+		m.stats = ProgressStats{}
 	
 	case MsgProgress:
 		m.count += msg.Increment
 	
 	case MsgStatus:
 		m.status = msg.Status
+
+	case MsgSuccess:
+		m.stats.SuccessCount++
+	
+	case MsgFailure:
+		m.stats.FailureCount++
+	
+	case MsgSkipped:
+		m.stats.SkippedCount++
 
 	case spinner.TickMsg:
 		var newSpinner spinner.Model
@@ -53,5 +66,9 @@ func (m ExtractModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ExtractModel) View() string {
-	return fmt.Sprintf("\n %s %s\n\n Processed: %d\n", m.spinner.View(), m.status, m.count)
+	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	statsStr := fmt.Sprintf("Processed: %d | Failed: %d | Skipped: %d", m.stats.SuccessCount, m.stats.FailureCount, m.stats.SkippedCount)
+	pad := strings.Repeat(" ", 2)
+
+	return fmt.Sprintf("\n%s %s %s\n\n%s%s\n", pad, m.spinner.View(), m.status, pad, statsStyle.Render(statsStr))
 }

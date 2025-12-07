@@ -18,6 +18,7 @@ type RawBookmark struct {
 		Description string `json:"description"`
 		HTMLContent string `json:"htmlContent"`
 	} `json:"content"`
+	Tags []string `json:"tags"`
 }
 
 type EnrichmentStatus string
@@ -45,6 +46,7 @@ type ExtractedRepo struct {
 	SourceID string    // ID of the original Karakeep bookmark.
 	Title    string    // Title from the bookmark.
 	FoundAt  time.Time // Timestamp of extraction.
+	Tags     []string  // Tags from Karakeep.
 
 	// Enrichment Data
 	Stars            *int             // Nullable

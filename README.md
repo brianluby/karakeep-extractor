@@ -13,6 +13,7 @@ It helps you turn a static list of bookmarks into an actionable, ranked intellig
 - **⚡ Enrich**: Fetch real-time statistics (Stars, Forks, Last Updated) from the GitHub API.
 - **🏆 Rank**: Sort repositories by popularity or freshness to prioritize your reading list.
 - **🔍 Filter**: Slice your data by keywords (tags) to focus on specific topics (e.g., "python", "cli").
+- **🧠 Analyze**: Use LLMs (OpenAI, etc.) to summarize or query your repositories using natural language.
 - **📤 Export**: Output data to JSON, CSV, or pipe it directly to external APIs (like Trillium Notes).
 
 ## 📦 Installation
@@ -56,6 +57,17 @@ View your top 20 repositories by star count.
 
 ```bash
 karakeep-extractor rank
+```
+
+### 5. Analyze
+Ask questions about your repositories using an LLM.
+
+```bash
+# Configure first (select provider, set API key)
+karakeep-extractor config llm
+
+# Ask a question
+karakeep-extractor analyze --lang Go "Which projects are best for building APIs?"
 ```
 
 ## 📚 Documentation

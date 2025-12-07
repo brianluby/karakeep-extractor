@@ -3,15 +3,18 @@ package config
 import (
 	"flag"
 	"os"
+
+	"github.com/brianluby/karakeep-extractor/internal/core/domain"
 )
 
 type Config struct {
-	KarakeepURL   string `yaml:"karakeep_url"`
-	KarakeepToken string `yaml:"karakeep_token"`
-	DBPath        string `yaml:"db_path"`
-	GitHubToken   string `yaml:"github_token"`
-	TrilliumURL   string `yaml:"trillium_url,omitempty"`
-	TrilliumToken string `yaml:"trillium_token,omitempty"`
+	KarakeepURL   string           `yaml:"karakeep_url"`
+	KarakeepToken string           `yaml:"karakeep_token"`
+	DBPath        string           `yaml:"db_path"`
+	GitHubToken   string           `yaml:"github_token"`
+	TrilliumURL   string           `yaml:"trillium_url,omitempty"`
+	TrilliumToken string           `yaml:"trillium_token,omitempty"`
+	LLM           domain.LLMConfig `yaml:"llm,omitempty"`
 }
 
 func Load() *Config {

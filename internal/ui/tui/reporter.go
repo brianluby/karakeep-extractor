@@ -36,3 +36,15 @@ func (r *BubbleTeaReporter) Error(err error) {
 func (r *BubbleTeaReporter) Finish(summary string) {
 	r.program.Send(MsgDone{Summary: summary})
 }
+
+func (r *BubbleTeaReporter) RecordSuccess() {
+	r.program.Send(MsgSuccess{})
+}
+
+func (r *BubbleTeaReporter) RecordFailure() {
+	r.program.Send(MsgFailure{})
+}
+
+func (r *BubbleTeaReporter) RecordSkipped() {
+	r.program.Send(MsgSkipped{})
+}

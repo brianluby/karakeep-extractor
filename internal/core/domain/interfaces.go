@@ -68,4 +68,13 @@ type ProgressReporter interface {
 
 	// Finish signals completion with a summary message.
 	Finish(summary string)
+
+	// RecordSuccess increments the success counter.
+	RecordSuccess()
+
+	// RecordFailure increments the failure counter.
+	RecordFailure()
+
+	// RecordSkipped increments the skipped counter.
+	RecordSkipped()
 }

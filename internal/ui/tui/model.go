@@ -187,4 +187,13 @@ type MsgLog struct { Message string }
 type MsgError struct { Err error }
 type MsgDone struct { Summary string }
 type MsgFatal struct { Err error }
+type MsgSuccess struct{}
+type MsgFailure struct{}
+type MsgSkipped struct{}
+
+type ProgressStats struct {
+	SuccessCount int
+	FailureCount int
+	SkippedCount int
+}
 

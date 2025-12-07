@@ -44,3 +44,23 @@ func TestConfigLoader_SaveConfig(t *testing.T) {
 	// We'll skip the integration test for now or assume manual verification via `setup`.
 	// Alternatively, we could refactor `SaveConfig` to take a path.
 }
+
+func TestConfigLoader_LoadLLMConfig(t *testing.T) {
+	os.Setenv("LLM_PROVIDER", "test-provider")
+	os.Setenv("LLM_BASE_URL", "http://test.com")
+	defer os.Unsetenv("LLM_PROVIDER")
+	defer os.Unsetenv("LLM_BASE_URL")
+
+	loader := NewConfigLoader()
+	cfg, err := loader.LoadConfig(nil)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if cfg.LLM.Provider != "test-provider" {
+		t.Errorf("Expected test-provider, got %s", cfg.LLM.Provider)
+	}
+	if cfg.LLM.BaseURL != "http://test.com" {
+		t.Errorf("Expected http://test.com, got %s", cfg.LLM.BaseURL)
+	}
+}
