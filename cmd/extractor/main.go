@@ -77,6 +77,9 @@ func main() {
 	command := os.Args[1]
 
 	switch command {
+	case "--help", "-h":
+		printUsage()
+		os.Exit(0)
 	case "extract":
 		runExtract()
 	case "enrich":
